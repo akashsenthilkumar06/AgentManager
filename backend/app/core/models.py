@@ -38,6 +38,7 @@ class AgentUpdateRequest(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     description: str = Field(min_length=8, max_length=500)
     owner: str = Field(min_length=2, max_length=100)
+    mcp_endpoint: str | None = Field(default=None, max_length=500)
     instructions: str = Field(min_length=12, max_length=4000)
     features: list[str] = Field(default_factory=list, max_length=20)
     response_style: Literal["concise", "balanced", "detailed"] = "balanced"
@@ -50,6 +51,16 @@ class AgentUpdateRequest(BaseModel):
     @classmethod
     def normalize_text(cls, value: str) -> str:
         return value.strip()
+
+    @field_validator("mcp_endpoint")
+    @classmethod
+    def normalize_mcp_endpoint(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        endpoint = value.strip()
+        if not endpoint.startswith(("demo://", "http://", "https://")):
+            raise ValueError("MCP endpoint must use demo://, http://, or https://")
+        return endpoint
 
     @field_validator("features", "enabled_tools")
     @classmethod
@@ -231,6 +242,10 @@ class ChatMessage(BaseModel):
     tool_calls: list[ToolCallRecord] = Field(default_factory=list)
     verification: OutputVerification | None = None
     context_used: list[str] = Field(default_factory=list)
+    execution_mode: Literal["live", "deterministic", "fallback"] = "deterministic"
+    provider: str = "local:deterministic"
+    endpoint: str | None = None
+    fallback_reason: str | None = None
 
 
 class AgentConversation(BaseModel):

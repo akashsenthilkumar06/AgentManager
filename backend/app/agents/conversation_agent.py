@@ -15,15 +15,22 @@ from backend.app.core.models import (
     utc_now,
 )
 from backend.app.core.storage import JsonStore
+from backend.app.infrastructure.live_conversation import LiveConversationRunner
 from backend.app.infrastructure.mock_system import MockSystem
 
 
 class ConversationAgent:
     """Runs a managed agent with scoped context and verifies its final answer."""
 
-    def __init__(self, store: JsonStore, mock_system: MockSystem):
+    def __init__(
+        self,
+        store: JsonStore,
+        mock_system: MockSystem,
+        live_runner: LiveConversationRunner,
+    ):
         self.store = store
         self.mock_system = mock_system
+        self.live_runner = live_runner
 
     async def respond(self, request: AgentChatRequest) -> AgentConversation:
         architecture = self.store.architecture()
@@ -37,43 +44,78 @@ class ConversationAgent:
         )
 
         started = time.perf_counter()
-        required_tool = {
-            "order-support-agent": ("lookup-order", "lookup_order"),
-            "logistics-agent": ("track-shipment", "track_shipment"),
-            "catalog-agent": ("check-inventory", "check_inventory"),
-        }.get(agent.id, (None, request.tool_name or "unavailable"))
-        tool_blocked = agent.tool_policy == "disabled" or (
-            bool(agent.enabled_tools) and required_tool[1] not in agent.enabled_tools
+        execution_mode = "deterministic"
+        provider = "local:deterministic"
+        fallback_reason: str | None = None
+        endpoint: str | None = None
+        tool_calls: list[ToolCallRecord] = []
+
+        if self.live_runner.is_live_endpoint(agent):
+            endpoint = agent.mcp_endpoint
+            try:
+                live = await self.live_runner.run(agent, conversation.messages)
+                content = live.text
+                tool_calls = live.tool_calls
+                criteria = live.criteria
+                evidence = live.evidence
+                provider = live.provider
+                execution_mode = "live"
+            except Exception as exc:
+                fallback_reason = str(exc)[:500]
+                execution_mode = "fallback"
+                provider = "local:fallback"
+
+        if execution_mode != "live":
+            tool_call, content, criteria, evidence = await self._deterministic_turn(
+                agent.id,
+                agent.tool_policy,
+                agent.enabled_tools,
+                request,
+                ignore_enabled_tools=bool(endpoint),
+            )
+            tool_call.duration_ms = max(
+                1, round((time.perf_counter() - started) * 1000)
+            )
+            tool_calls = [tool_call]
+            if fallback_reason:
+                evidence.insert(
+                    0, f"Live MCP unavailable; deterministic fallback: {fallback_reason}"
+                )
+
+        content = self._apply_response_style(
+            content, tool_calls, agent.response_style
         )
-        if tool_blocked:
-            tool_call = ToolCallRecord(
-                id=f"call_{uuid4().hex[:10]}",
-                tool_id=required_tool[0],
-                tool_name=required_tool[1],
-                status="failed",
-            )
-            content = (
-                f"I could not complete this test because {required_tool[1]} is disabled "
-                "in the current agent configuration."
-            )
-            criteria = ["Use the required grounded tool", "Return a supported answer"]
-            evidence = ["Agent tool policy blocked execution"]
-        else:
-            tool_call, content, criteria, evidence = await self._run(agent.id, request)
-        content = self._apply_response_style(content, tool_call, agent.response_style)
         context_used = self._context_labels(agent, request.context_mode)
+        if execution_mode == "live":
+            context_used.extend(
+                [
+                    f"Execution · Live MCP",
+                    f"Endpoint · {endpoint}",
+                    f"Provider · {provider}",
+                ]
+            )
+        elif execution_mode == "fallback":
+            context_used.extend(
+                [
+                    "Execution · Deterministic fallback",
+                    f"Live endpoint · {endpoint}",
+                ]
+            )
         verification = self._verify(
-            content, tool_call, criteria, evidence, agent.verification_mode
+            content, tool_calls, criteria, evidence, agent.verification_mode
         )
-        tool_call.duration_ms = max(1, round((time.perf_counter() - started) * 1000))
         conversation.messages.append(
             ChatMessage(
                 id=f"msg_{uuid4().hex[:10]}",
                 role="agent",
                 content=content,
-                tool_calls=[tool_call],
+                tool_calls=tool_calls,
                 verification=verification,
                 context_used=context_used,
+                execution_mode=execution_mode,
+                provider=provider,
+                endpoint=endpoint,
+                fallback_reason=fallback_reason,
             )
         )
         conversation.updated_at = utc_now()
@@ -94,6 +136,42 @@ class ConversationAgent:
             agent_id=request.agent_id,
             title=title,
         )
+
+    async def _deterministic_turn(
+        self,
+        agent_id: str,
+        tool_policy: str,
+        enabled_tools: list[str],
+        request: AgentChatRequest,
+        *,
+        ignore_enabled_tools: bool = False,
+    ) -> tuple[ToolCallRecord, str, list[str], list[str]]:
+        required_tool = {
+            "order-support-agent": ("lookup-order", "lookup_order"),
+            "logistics-agent": ("track-shipment", "track_shipment"),
+            "catalog-agent": ("check-inventory", "check_inventory"),
+        }.get(agent_id, (None, request.tool_name or "unavailable"))
+        tool_blocked = tool_policy == "disabled" or (
+            not ignore_enabled_tools
+            and bool(enabled_tools)
+            and required_tool[1] not in enabled_tools
+        )
+        if tool_blocked:
+            return (
+                ToolCallRecord(
+                    id=f"call_{uuid4().hex[:10]}",
+                    tool_id=required_tool[0],
+                    tool_name=required_tool[1],
+                    status="failed",
+                ),
+                (
+                    f"I could not complete this test because {required_tool[1]} "
+                    "is disabled in the current agent configuration."
+                ),
+                ["Use the required grounded tool", "Return a supported answer"],
+                ["Agent tool policy blocked execution"],
+            )
+        return await self._run(agent_id, request)
 
     async def _run(
         self, agent_id: str, request: AgentChatRequest
@@ -182,14 +260,20 @@ class ConversationAgent:
 
     @staticmethod
     def _apply_response_style(
-        content: str, tool_call: ToolCallRecord, response_style: str
+        content: str,
+        tool_calls: list[ToolCallRecord],
+        response_style: str,
     ) -> str:
         if response_style == "concise":
             return content.split(". ")[0].rstrip(".") + "."
-        if response_style == "detailed" and tool_call.status == "passed":
+        passed = next(
+            (call for call in tool_calls if call.status == "passed"),
+            None,
+        )
+        if response_style == "detailed" and passed:
             return (
                 content
-                + f" This answer was grounded in {tool_call.tool_name} and will remain "
+                + f" This answer was grounded in {passed.tool_name} and will remain "
                 "attached to the test history for review."
             )
         return content
@@ -197,12 +281,15 @@ class ConversationAgent:
     @staticmethod
     def _verify(
         content: str,
-        tool_call: ToolCallRecord,
+        tool_calls: list[ToolCallRecord],
         criteria: list[str],
         evidence: list[str],
         verification_mode: str,
     ) -> OutputVerification:
-        complete = bool(content.strip()) and tool_call.status == "passed" and bool(tool_call.output)
+        complete = bool(content.strip()) and any(
+            call.status == "passed" and bool(call.output)
+            for call in tool_calls
+        )
         confidence = 0.98 if verification_mode == "strict" else 0.96
         if verification_mode == "advisory":
             confidence = 0.9

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.app.core.models import (
@@ -74,6 +75,11 @@ async def discover_managed_agent(agent_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Managed agent not found")
     try:
         discovered = await architecture_agent.discover_agent(agent, architecture)
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not connect to the MCP endpoint: {exc}",
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     agents = [discovered if item.id == agent_id else item for item in architecture.agents]
@@ -96,7 +102,24 @@ async def update_managed_agent(
             status_code=422,
             detail=f"Unknown agent tools: {', '.join(sorted(unknown_tools))}",
         )
-    updated = agent.model_copy(update=request.model_dump())
+    updates = request.model_dump(exclude_unset=True)
+    endpoint_changed = (
+        "mcp_endpoint" in updates
+        and updates["mcp_endpoint"] != agent.mcp_endpoint
+    )
+    if endpoint_changed:
+        updates.update(
+            {
+                "mcp_server_name": None,
+                "mcp_tools": [],
+                "mcp_prompts": [],
+                "mcp_resources": [],
+                "enabled_tools": [],
+                "last_discovered_at": None,
+                "status": "degraded",
+            }
+        )
+    updated = agent.model_copy(update=updates)
     store.update_agent(updated)
     return updated.model_dump()
 

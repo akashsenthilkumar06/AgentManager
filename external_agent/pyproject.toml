@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-manager-external-test-agent"
+version = "0.1.0"
+description = "Standalone MCP test agent for Agentic AI Manager integration testing."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116,<1.0",
+  "uvicorn[standard]>=0.35,<1.0",
+]
+
+[tool.setuptools]
+py-modules = ["app"]

@@ -3,7 +3,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import BrandMark from "../components/BrandMark";
 
 const NAVIGATION = [
-  ["/", "⌁", "Workspace"],
+  ["/", "⌂", "Dashboard"],
+  ["/workspace", "⌁", "Workspace"],
   ["/agents", "◎", "Managed agents"],
   ["/history", "↗", "Activity"],
   ["/health", "◉", "System health"],
@@ -13,7 +14,7 @@ export default function AppShell({ overview, onReset, children }) {
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
-  const isWorkspace = location.pathname === "/";
+  const isWorkspace = location.pathname === "/workspace";
   useEffect(() => {
     const closeOnEscape = (event) => { if (event.key === "Escape") setMenuOpen(false); };
     document.addEventListener("keydown", closeOnEscape);

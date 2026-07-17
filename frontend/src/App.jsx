@@ -4,6 +4,7 @@ import { api } from "./api";
 import AppShell from "./layout/AppShell";
 import AgentsPage from "./pages/AgentsPage";
 import AgentWorkspacePage from "./pages/AgentWorkspacePage";
+import DashboardPage from "./pages/DashboardPage";
 import HealthPage from "./pages/HealthPage";
 import HistoryPage from "./pages/HistoryPage";
 import WorkspacePage from "./pages/WorkspacePage";
@@ -46,11 +47,12 @@ export default function App() {
   return (
     <AppShell overview={overview} onReset={resetDemo}>
       <div className="route-stage" key={location.pathname}><Routes location={location}>
-        <Route path="/" element={<WorkspacePage agents={overview.architecture.agents} onRefresh={refresh} notify={notify} />} />
+        <Route path="/" element={<DashboardPage overview={overview} health={health} />} />
+        <Route path="/workspace" element={<WorkspacePage agents={overview.architecture.agents} onRefresh={refresh} notify={notify} />} />
         <Route path="/agents" element={<AgentsPage agents={overview.architecture.agents} conversations={overview.recent_conversations || []} onRefresh={refresh} notify={notify} />} />
-        <Route path="/agents/:agentId" element={<AgentWorkspacePage agents={overview.architecture.agents} notify={notify} />} />
+        <Route path="/agents/:agentId" element={<AgentWorkspacePage agents={overview.architecture.agents} onRefresh={refresh} notify={notify} />} />
         <Route path="/architecture" element={<Navigate to="/agents" replace />} />
-        <Route path="/files" element={<Navigate to="/" replace />} />
+        <Route path="/files" element={<Navigate to="/workspace" replace />} />
         <Route path="/health" element={<HealthPage health={health} architecture={overview.architecture} setHealth={setHealth} notify={notify} />} />
         <Route path="/history" element={<HistoryPage builds={overview.recent_builds} conversations={overview.recent_conversations || []} agents={overview.architecture.agents} />} />
         <Route path="*" element={<Navigate to="/" replace />} />

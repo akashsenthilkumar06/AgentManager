@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -25,6 +26,9 @@ class ManagedAgentMCPClient:
     endpoints use JSON-RPC and call initialize, tools/list, prompts/list, and
     resources/list. Unsupported optional methods are treated as empty lists.
     """
+
+    def __init__(self, transport: httpx.AsyncBaseTransport | None = None):
+        self.transport = transport
 
     async def discover(self, agent: AgentRecord, registered_tools: list[ToolRecord]) -> MCPDiscovery:
         endpoint = agent.mcp_endpoint
@@ -56,7 +60,9 @@ class ManagedAgentMCPClient:
         )
 
     async def _discover_http(self, endpoint: str) -> MCPDiscovery:
-        async with httpx.AsyncClient(timeout=12.0) as client:
+        async with httpx.AsyncClient(
+            timeout=12.0, transport=self.transport
+        ) as client:
             initialized = await self._call(client, endpoint, 1, "initialize", {
                 "protocolVersion": "2025-06-18",
                 "capabilities": {},
@@ -86,6 +92,35 @@ class ManagedAgentMCPClient:
             features=[tool.description or tool.name for tool in tools],
         )
 
+    async def call_tool(
+        self,
+        endpoint: str,
+        name: str,
+        arguments: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not endpoint.startswith(("http://", "https://")):
+            raise ValueError("Live MCP tool calls require an HTTP(S) endpoint")
+        async with httpx.AsyncClient(
+            timeout=20.0, transport=self.transport
+        ) as client:
+            result = await self._call(
+                client,
+                endpoint,
+                20,
+                "tools/call",
+                {"name": name, "arguments": arguments},
+            )
+        if result.get("isError"):
+            raise ValueError(self._content_text(result) or f"MCP tool {name} failed")
+        text = self._content_text(result)
+        if not text:
+            return {"content": result}
+        try:
+            parsed = json.loads(text)
+        except ValueError:
+            return {"content": text}
+        return parsed if isinstance(parsed, dict) else {"content": parsed}
+
     @staticmethod
     async def _call(
         client: httpx.AsyncClient,
@@ -98,7 +133,13 @@ class ManagedAgentMCPClient:
         response.raise_for_status()
         payload = response.json()
         if "error" in payload:
-            raise ValueError(str(payload["error"].get("message", f"MCP {method} failed")))
+            error = payload["error"]
+            message = (
+                error.get("message", f"MCP {method} failed")
+                if isinstance(error, dict)
+                else error
+            )
+            raise ValueError(str(message))
         return payload.get("result", {})
 
     async def _optional_call(self, client: httpx.AsyncClient, endpoint: str, request_id: int, method: str) -> dict[str, Any]:
@@ -107,3 +148,12 @@ class ManagedAgentMCPClient:
         except (httpx.HTTPError, ValueError, KeyError):
             return {}
 
+    @staticmethod
+    def _content_text(result: dict[str, Any]) -> str:
+        return "\n".join(
+            str(item.get("text", ""))
+            for item in result.get("content", [])
+            if isinstance(item, dict)
+            and item.get("type") == "text"
+            and item.get("text") is not None
+        ).strip()

@@ -14,6 +14,7 @@ from backend.app.agents.validation_agent import ValidationAgent
 from backend.app.config import Settings
 from backend.app.core.storage import JsonStore
 from backend.app.infrastructure.llm_router import LLMRouter
+from backend.app.infrastructure.live_conversation import LiveConversationRunner
 from backend.app.infrastructure.managed_workspace import ManagedAgentWorkspace
 from backend.app.infrastructure.mcp_client import ManagedAgentMCPClient
 from backend.app.infrastructure.mock_system import MockSystem
@@ -48,7 +49,17 @@ manager_agent = ManagerAgent(
     llm_router,
     workspace_access,
 )
-conversation_agent = ConversationAgent(store, mock_system)
+live_conversation_runner = LiveConversationRunner(
+    settings.openai_api_key,
+    settings.openai_model,
+    settings.openai_base_url,
+    mcp_client,
+)
+conversation_agent = ConversationAgent(
+    store,
+    mock_system,
+    live_conversation_runner,
+)
 openai_manager_loop = OpenAIManagerLoop(
     settings.openai_api_key,
     settings.openai_model,

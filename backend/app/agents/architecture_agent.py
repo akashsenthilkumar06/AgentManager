@@ -22,12 +22,19 @@ class ArchitectureAgent:
 
     async def discover_agent(self, agent: AgentRecord, architecture: ArchitectureState) -> AgentRecord:
         discovery = await self.mcp_client.discover(agent, architecture.tools)
+        discovered_names = {tool.name for tool in discovery.tools}
+        enabled_tools = [
+            name for name in agent.enabled_tools if name in discovered_names
+        ]
+        if discovery.tools and not enabled_tools:
+            enabled_tools = [tool.name for tool in discovery.tools]
         return agent.model_copy(update={
             "mcp_server_name": discovery.server_name,
             "mcp_tools": discovery.tools,
             "mcp_prompts": discovery.prompts,
             "mcp_resources": discovery.resources,
             "features": discovery.features or agent.features,
+            "enabled_tools": enabled_tools,
             "last_discovered_at": discovery.discovered_at,
             "status": "healthy",
         })

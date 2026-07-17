@@ -1,5 +1,16 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
+function errorMessage(body, status) {
+  if (typeof body.detail === "string") return body.detail;
+  if (Array.isArray(body.detail)) {
+    const messages = body.detail
+      .map((item) => item?.msg)
+      .filter(Boolean);
+    if (messages.length) return messages.join("; ");
+  }
+  return `Request failed (${status})`;
+}
+
 export async function api(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -9,7 +20,6 @@ export async function api(path, options = {}) {
     }
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
+  if (!response.ok) throw new Error(errorMessage(body, response.status));
   return body;
 }
-
