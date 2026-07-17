@@ -1,0 +1,15 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+frontend/node_modules/
+frontend/dist/
+backend/data/*.json
+backend/data/managed_workspaces/
+backend/generated_tools/*.py
+!backend/generated_tools/__init__.py

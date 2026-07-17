@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-label="Agent Manager">
+  <rect width="64" height="64" rx="16" fill="#d9f5e6"/>
+  <rect x="16" y="30" width="7" height="18" rx="3.5" fill="#163d32"/>
+  <rect x="28.5" y="14" width="7" height="34" rx="3.5" fill="#163d32"/>
+  <rect x="41" y="23" width="7" height="25" rx="3.5" fill="#163d32"/>
+</svg>
+
