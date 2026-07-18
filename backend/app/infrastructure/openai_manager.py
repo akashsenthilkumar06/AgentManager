@@ -26,7 +26,7 @@ class OpenAIManagerLoop:
         {
             "type": "function",
             "name": "architecture_search",
-            "description": "Use the Architecture MCP tool to inspect existing agents, tools, endpoints, and reusable patterns relevant to a proposed agent change.",
+            "description": "Delegate to the Architecture Analyst employee to inspect existing agents, tools, endpoints, and reusable patterns relevant to a proposed agent change.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -38,7 +38,7 @@ class OpenAIManagerLoop:
         {
             "type": "function",
             "name": "workspace_inspect",
-            "description": "Inspect the selected client agent's local workspace files and current MCP-derived configuration before proposing edits.",
+            "description": "Delegate to the Workspace Inspector employee to inspect the selected client agent's local workspace files and current MCP-derived configuration before proposing edits.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -50,7 +50,7 @@ class OpenAIManagerLoop:
         {
             "type": "function",
             "name": "developer_propose_change",
-            "description": "Prepare a concrete, minimal change to the selected agent instructions after architecture and workspace inspection.",
+            "description": "Delegate to the Developer Specialist employee to prepare a concrete, minimal change to the selected agent instructions after architecture and workspace inspection.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -65,7 +65,7 @@ class OpenAIManagerLoop:
         {
             "type": "function",
             "name": "validation_evaluate",
-            "description": "Evaluate whether the proposed client-agent change addresses the user's objective and remains grounded in available capabilities.",
+            "description": "Delegate to the Validation Specialist employee to evaluate whether the proposed client-agent change addresses the user's objective and remains grounded in available capabilities.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -100,6 +100,8 @@ class OpenAIManagerLoop:
         calls: list[dict[str, Any]] = []
         instructions = (
             "You are the Manager Agent in an agent-development workspace. "
+            "Run your specialist employees deliberately: Architecture Analyst, Workspace Inspector, "
+            "Developer Specialist, and Validation Specialist. "
             "Analyze the requested change, choose the smallest useful MCP-backed tools, "
             "inspect before editing, propose a precise change, and validate it. "
             "Do not claim a change was applied; the application controls approval and writes. "

@@ -37,7 +37,7 @@ class LLMRouter:
             "additionalProperties": False,
             "required": ["intent", "rationale"],
             "properties": {
-                "intent": {"type": "string", "enum": ["order_status", "inventory_risk"]},
+                "intent": {"type": "string", "enum": ["order_status", "inventory_risk", "finance_review", "code_review"]},
                 "rationale": {"type": "string"},
             },
         }
@@ -80,7 +80,14 @@ class LLMRouter:
     @staticmethod
     def _local_route(prompt: str) -> RouteDecision:
         lowered = prompt.lower()
-        intent = "inventory_risk" if any(word in lowered for word in ("inventory", "stock", "sku", "availability")) else "order_status"
+        if any(word in lowered for word in ("finance", "invoice", "billing", "payment")):
+            intent = "finance_review"
+        elif any(word in lowered for word in ("code", "repo", "review", "test", "bug", "build", "release")):
+            intent = "code_review"
+        elif any(word in lowered for word in ("inventory", "stock", "sku", "availability")):
+            intent = "inventory_risk"
+        else:
+            intent = "order_status"
         return RouteDecision(
             intent=intent,
             rationale="Matched the request to the closest supported demo capability using architecture keywords.",

@@ -29,37 +29,62 @@ ORDERS = {
     },
 }
 
-SHIPMENTS = {
-    "ORD-1042": {
-        "order_id": "ORD-1042",
-        "tracking_number": "1Z83A04",
-        "carrier": "UPS",
-        "status": "in_transit",
-        "latest_event": "Departed regional facility",
-        "eta": "2026-07-18",
-        "exception": "Weather delay near Memphis hub",
-        "delay_hours": 14,
-    },
-    "ORD-2048": {
-        "order_id": "ORD-2048",
-        "tracking_number": "9405511",
-        "carrier": "USPS",
-        "status": "delivered",
-        "latest_event": "Delivered at front door",
-        "eta": "2026-07-11",
-        "exception": None,
-        "delay_hours": 0,
-    },
-}
-
-INVENTORY = {
-    "SKU-RED-42": {"sku": "SKU-RED-42", "on_hand": 148, "reserved": 29, "available": 119, "location_count": 4},
-    "SKU-BLU-07": {"sku": "SKU-BLU-07", "on_hand": 8, "reserved": 8, "available": 0, "location_count": 1},
-}
-
 CUSTOMERS = {
     "CUS-88": {"customer_id": "CUS-88", "tier": "Gold", "preferred_channel": "email", "locale": "en-US"},
     "CUS-23": {"customer_id": "CUS-23", "tier": "Standard", "preferred_channel": "sms", "locale": "en-US"},
+}
+
+INVOICES = {
+    "INV-2048": {
+        "invoice_id": "INV-2048",
+        "customer_id": "CUS-88",
+        "status": "past_due",
+        "amount": 1840.50,
+        "currency": "USD",
+        "due_date": "2026-07-15",
+        "notes": "Partial payment received; finance follow-up needed.",
+    },
+    "INV-1120": {
+        "invoice_id": "INV-1120",
+        "customer_id": "CUS-23",
+        "status": "paid",
+        "amount": 420.00,
+        "currency": "USD",
+        "due_date": "2026-07-06",
+        "notes": "Closed out in full.",
+    },
+}
+
+CODEBASE = {
+    "REPO-1": {
+        "repo_id": "REPO-1",
+        "branch": "main",
+        "status": "needs_review",
+        "coverage": 86.4,
+        "failing_tests": 2,
+        "open_issues": 5,
+        "risk": "medium",
+        "summary": "Recent changes touched shared utilities and test coverage slipped below the release threshold.",
+    }
+}
+
+TICKETS = {
+    "TCK-9001": {
+        "ticket_id": "TCK-9001",
+        "customer_id": "CUS-88",
+        "status": "investigating",
+        "priority": "high",
+        "owner": "Tier 2 Support",
+        "next_step": "Collect account details and confirm billing history.",
+    },
+    "TCK-9012": {
+        "ticket_id": "TCK-9012",
+        "customer_id": "CUS-23",
+        "status": "resolved",
+        "priority": "low",
+        "owner": "Tier 1 Support",
+        "next_step": "Send closure summary to customer.",
+    },
 }
 
 
@@ -86,9 +111,10 @@ class MockSystem:
         await asyncio.sleep(0.006)
         patterns = [
             (r"^/mock/orders/([^/]+)$", ORDERS),
-            (r"^/mock/shipments/by-order/([^/]+)$", SHIPMENTS),
-            (r"^/mock/inventory/([^/]+)$", INVENTORY),
             (r"^/mock/customers/([^/]+)$", CUSTOMERS),
+            (r"^/mock/invoices/([^/]+)$", INVOICES),
+            (r"^/mock/codebase/([^/]+)$", CODEBASE),
+            (r"^/mock/tickets/([^/]+)$", TICKETS),
         ]
         for pattern, records in patterns:
             match = re.match(pattern, path)

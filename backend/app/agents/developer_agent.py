@@ -20,9 +20,146 @@ class DeveloperAgent:
 
     def generate(self, prompt: str, candidates: list[ReuseCandidate], intent: str | None = None) -> GeneratedArtifact:
         lowered = prompt.lower()
+        if intent == "finance_review" or (intent is None and any(word in lowered for word in ("finance", "invoice", "billing", "payment"))):
+            return self._finance(prompt, candidates)
+        if intent == "code_review" or (intent is None and any(word in lowered for word in ("code", "repo", "review", "test", "bug", "build", "release"))):
+            return self._code_review(prompt, candidates)
         if intent == "inventory_risk" or (intent is None and any(word in lowered for word in ("inventory", "stock", "sku", "availability"))):
             return self._inventory(prompt, candidates)
         return self._order_status(prompt, candidates)
+
+    def _finance(self, prompt: str, candidates: list[ReuseCandidate]) -> GeneratedArtifact:
+        endpoint_ids = self._reused_endpoints(candidates, ["invoices-api", "customers-api"])
+        slug = "invoice_status_summary"
+        spec = {
+            "name": slug,
+            "description": "Summarizes invoice status, due date, and customer context for finance workflows.",
+            "input_schema": {
+                "type": "object",
+                "required": ["invoice_id"],
+                "properties": {"invoice_id": {"type": "string", "description": "Finance invoice identifier"}},
+            },
+            "output_schema": {
+                "type": "object",
+                "required": ["invoice_id", "status", "summary", "past_due"],
+                "properties": {
+                    "invoice_id": {"type": "string"},
+                    "status": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "past_due": {"type": "boolean"},
+                },
+            },
+            "reuses": endpoint_ids,
+        }
+        source = f'''\
+TOOL_SPEC = {repr(spec)}
+
+
+async def execute(payload, http_get):
+    """Return a normalized invoice status summary."""
+    invoice_id = str(payload.get("invoice_id", "")).strip().upper()
+    if not invoice_id:
+        raise ValueError("invoice_id is required")
+
+    invoice = await http_get("/mock/invoices/" + invoice_id)
+    customer = await http_get("/mock/customers/" + invoice["customer_id"])
+    past_due = invoice["status"] == "past_due"
+    summary = (
+        "Invoice " + invoice_id + " is " + invoice["status"].replace("_", " ")
+        + " for customer tier " + customer["tier"] + ". Due date: " + invoice["due_date"]
+        + ". Amount: " + invoice["currency"] + " " + str(invoice["amount"]) + "."
+    )
+
+    return {{
+        "invoice_id": invoice_id,
+        "status": invoice["status"],
+        "customer_id": invoice["customer_id"],
+        "due_date": invoice["due_date"],
+        "amount": invoice["amount"],
+        "past_due": past_due,
+        "summary": summary,
+    }}
+'''
+        tool = ToolRecord(
+            id=slug,
+            name=slug,
+            description=spec["description"],
+            owner="Manager Agent",
+            endpoint_ids=endpoint_ids,
+            input_schema=spec["input_schema"],
+            output_schema=spec["output_schema"],
+            generated=True,
+            source_file=f"{slug}.py",
+            operation="generated",
+            probe_input={"invoice_id": "INV-2048"},
+        )
+        return GeneratedArtifact(tool=tool, source=source, plan=self._plan(prompt, tool, candidates))
+
+    def _code_review(self, prompt: str, candidates: list[ReuseCandidate]) -> GeneratedArtifact:
+        endpoint_ids = self._reused_endpoints(candidates, ["codebase-api"])
+        slug = "code_health_summary"
+        spec = {
+            "name": slug,
+            "description": "Summarizes repository health and release risk for coding workflows.",
+            "input_schema": {
+                "type": "object",
+                "required": ["repo_id"],
+                "properties": {"repo_id": {"type": "string", "description": "Repository identifier"}},
+            },
+            "output_schema": {
+                "type": "object",
+                "required": ["repo_id", "status", "summary", "high_risk"],
+                "properties": {
+                    "repo_id": {"type": "string"},
+                    "status": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "high_risk": {"type": "boolean"},
+                },
+            },
+            "reuses": endpoint_ids,
+        }
+        source = f'''\
+TOOL_SPEC = {repr(spec)}
+
+
+async def execute(payload, http_get):
+    """Return a normalized code health summary."""
+    repo_id = str(payload.get("repo_id", "")).strip().upper()
+    if not repo_id:
+        raise ValueError("repo_id is required")
+
+    repo = await http_get("/mock/codebase/" + repo_id)
+    high_risk = repo["status"] == "needs_review" or repo["failing_tests"] > 0
+    summary = (
+        "Repository " + repo_id + " is " + repo["status"].replace("_", " ")
+        + " with coverage at " + str(repo["coverage"]) + "% and "
+        + str(repo["failing_tests"]) + " failing tests."
+    )
+
+    return {{
+        "repo_id": repo_id,
+        "status": repo["status"],
+        "coverage": repo["coverage"],
+        "failing_tests": repo["failing_tests"],
+        "open_issues": repo["open_issues"],
+        "high_risk": high_risk,
+        "summary": summary,
+    }}
+'''
+        tool = ToolRecord(
+            id=slug,
+            name=slug,
+            description=spec["description"],
+            owner="Manager Agent",
+            endpoint_ids=endpoint_ids,
+            input_schema=spec["input_schema"],
+            output_schema=spec["output_schema"],
+            generated=True,
+            source_file=f"{slug}.py",
+            operation="generated",
+            probe_input={"repo_id": "REPO-1"},
+        )
+        return GeneratedArtifact(tool=tool, source=source, plan=self._plan(prompt, tool, candidates))
 
     def _order_status(self, prompt: str, candidates: list[ReuseCandidate]) -> GeneratedArtifact:
         endpoint_ids = self._reused_endpoints(candidates, ["orders-api", "shipments-api"])
@@ -156,7 +293,11 @@ async def execute(payload, http_get):
     @staticmethod
     def _reused_endpoints(candidates: list[ReuseCandidate], defaults: list[str]) -> list[str]:
         found = [item.id for item in candidates if item.kind == "endpoint" and item.id in defaults]
-        return found or defaults
+        merged: list[str] = []
+        for endpoint_id in [*found, *defaults]:
+            if endpoint_id not in merged:
+                merged.append(endpoint_id)
+        return merged
 
     @staticmethod
     def _plan(prompt: str, tool: ToolRecord, candidates: list[ReuseCandidate]) -> dict[str, Any]:

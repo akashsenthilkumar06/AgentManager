@@ -3,9 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 
 const TEST_STARTERS = {
-  "order-support-agent": ["What is the status of ORD-1042?", "Summarize ORD-2048 for support."],
-  "logistics-agent": ["Where is ORD-1042 and is it delayed?", "Check the delivery event for ORD-2048."],
-  "catalog-agent": ["Is SKU-RED-42 available?", "Explain the stockout risk for SKU-BLU-07."],
+  "finance-agent": ["What is the status of INV-2048?", "Summarize the billing risk for INV-1120."],
+  "coding-agent": ["How healthy is REPO-1 right now?", "Summarize release risk for REPO-1."],
+  "support-agent": ["What is the status of TCK-9001?", "Summarize the next action for TCK-9012."],
 };
 
 const EDIT_STARTERS = [

@@ -25,6 +25,13 @@ from backend.app.infrastructure.openai_manager import OpenAIManagerLoop
 class AgenticManager:
     """Routes edit requests across MCP-style specialists and manages approvals."""
 
+    _EMPLOYEE_BY_TOOL: dict[str, str] = {
+        "architecture_search": "Architecture Analyst",
+        "workspace_inspect": "Workspace Inspector",
+        "developer_propose_change": "Developer Specialist",
+        "validation_evaluate": "Validation Specialist",
+    }
+
     def __init__(
         self,
         store: JsonStore,
@@ -105,6 +112,8 @@ class AgenticManager:
         else:
             text += " The change is staged for your review and has not been written yet."
 
+        text += self._delegation_summary(actions)
+
         manager_message = ManagerMessage(
             id=f"mgrmsg_{uuid4().hex[:10]}",
             role="manager",
@@ -142,7 +151,6 @@ class AgenticManager:
         if not pending:
             raise ValueError("No pending changes to apply")
         self._apply_changes(agent, pending)
-        conversation.updated_at = utc_now()
         conversation.messages.append(
             ManagerMessage(
                 id=f"mgrmsg_{uuid4().hex[:10]}",
@@ -151,6 +159,7 @@ class AgenticManager:
                 provider="manager:approval",
             )
         )
+        conversation.updated_at = utc_now()
         self.store.upsert_manager_conversation(conversation)
         return conversation
 
@@ -162,28 +171,29 @@ class AgenticManager:
     ) -> dict[str, Any]:
         started = time.perf_counter()
         agent: AgentRecord = state["agent"]
+        employee = self._EMPLOYEE_BY_TOOL.get(name, "Operations Specialist")
         server, tool, title = {
             "architecture_search": (
                 "architecture",
                 "architecture.search",
-                "Inspect architecture",
+                f"{employee}: inspect architecture",
             ),
             "workspace_inspect": (
                 "workspace",
                 "workspace.inspect",
-                "Read client workspace",
+                f"{employee}: inspect client workspace",
             ),
             "developer_propose_change": (
                 "developer",
                 "developer.propose_change",
-                "Prepare agent edit",
+                f"{employee}: prepare agent edit",
             ),
             "validation_evaluate": (
                 "validation",
                 "validation.evaluate",
-                "Evaluate requested outcome",
+                f"{employee}: evaluate requested outcome",
             ),
-        }.get(name, ("monitoring", name, "Run manager tool"))
+        }.get(name, ("monitoring", name, f"{employee}: run manager tool"))
         try:
             if name == "architecture_search":
                 prompt = str(arguments.get("prompt") or state["prompt"])
@@ -193,7 +203,7 @@ class AgenticManager:
                 result: dict[str, Any] = {
                     "matches": [item.model_dump() for item in matches[:5]]
                 }
-                detail = f"Found {len(matches)} relevant architecture components."
+                detail = f"{employee} found {len(matches)} relevant architecture components."
             elif name == "workspace_inspect":
                 result = self.managed_workspace.inspect(
                     agent,
@@ -201,7 +211,7 @@ class AgenticManager:
                 )
                 connected_count = len(result.get("context_files", []))
                 detail = (
-                    f"Inspected {len(result['files'])} manager files and "
+                    f"{employee} inspected {len(result['files'])} manager files and "
                     f"{connected_count} relevant connected-workspace files "
                     f"for {agent.id}."
                 )
@@ -222,7 +232,7 @@ class AgenticManager:
                 )
                 state["changes"].append(change)
                 result = {"change": change.model_dump()}
-                detail = "Prepared a minimal instructions patch."
+                detail = f"{employee} prepared a minimal instructions patch."
             elif name == "validation_evaluate":
                 changes: list[ManagerChange] = state["changes"]
                 valid = bool(changes) and all(
@@ -245,7 +255,7 @@ class AgenticManager:
                 )
                 state["evaluation"] = evaluation
                 result = {"evaluation": evaluation.model_dump()}
-                detail = evaluation.summary
+                detail = f"{employee}: {evaluation.summary}"
             else:
                 raise ValueError(f"Unknown Manager tool: {name}")
             action = ManagerAction(
@@ -335,3 +345,15 @@ class AgenticManager:
             f"then prepared {len(changes)} validated change{'s' if len(changes) != 1 else ''} "
             f"for “{request.message}”."
         )
+
+    def _delegation_summary(self, actions: list[ManagerAction]) -> str:
+        if not actions:
+            return ""
+        entries = [
+            f"{index + 1}) {action.title}"
+            for index, action in enumerate(actions)
+            if action.status == "passed"
+        ]
+        if not entries:
+            return ""
+        return "\n\nDelegation trace:\n" + "\n".join(entries)

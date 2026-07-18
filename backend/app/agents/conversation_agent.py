@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import re
 import time
 from uuid import uuid4
 
+from backend.app.agents.employees import EMPLOYEE_HANDLERS, REQUIRED_TOOLS
 from backend.app.core.models import (
     AgentChatRequest,
     AgentConversation,
@@ -146,11 +146,9 @@ class ConversationAgent:
         *,
         ignore_enabled_tools: bool = False,
     ) -> tuple[ToolCallRecord, str, list[str], list[str]]:
-        required_tool = {
-            "order-support-agent": ("lookup-order", "lookup_order"),
-            "logistics-agent": ("track-shipment", "track_shipment"),
-            "catalog-agent": ("check-inventory", "check_inventory"),
-        }.get(agent_id, (None, request.tool_name or "unavailable"))
+        required_tool = REQUIRED_TOOLS.get(
+            agent_id, (None, request.tool_name or "unavailable")
+        )
         tool_blocked = tool_policy == "disabled" or (
             not ignore_enabled_tools
             and bool(enabled_tools)
@@ -176,57 +174,21 @@ class ConversationAgent:
     async def _run(
         self, agent_id: str, request: AgentChatRequest
     ) -> tuple[ToolCallRecord, str, list[str], list[str]]:
-        message = request.message.upper()
-        if agent_id == "order-support-agent":
-            order_id = self._identifier(message, r"ORD-\d+", "ORD-1042")
-            output = await self.mock_system.get(f"/mock/orders/{order_id}")
-            content = (
-                f"{order_id} is currently {output['status'].replace('_', ' ')}. "
-                f"It contains {output['items']} items with a total of "
-                f"{output['currency']} {output['total']:.2f}."
-            )
-            return self._tool("lookup-order", "lookup_order", {"order_id": order_id}, output), content, [
-                "Identify the requested order",
-                "Report its current lifecycle status",
-                "Ground the answer in the order system",
-            ], [f"Order API returned status={output['status']}", f"Matched order_id={order_id}"]
-
-        if agent_id == "logistics-agent":
-            order_id = self._identifier(message, r"ORD-\d+", "ORD-1042")
-            output = await self.mock_system.get(f"/mock/shipments/by-order/{order_id}")
-            exception = output.get("exception")
-            content = (
-                f"{order_id} is {output['status'].replace('_', ' ')} with {output['carrier']}. "
-                f"The latest event is “{output['latest_event']}” and the current ETA is {output['eta']}."
-            )
-            if exception:
-                content += f" It is delayed by {output['delay_hours']} hours: {exception}."
-            else:
-                content += " No delivery exception is currently reported."
-            return self._tool("track-shipment", "track_shipment", {"order_id": order_id}, output), content, [
-                "Identify the requested shipment",
-                "Report ETA and latest carrier event",
-                "Call out any active exception or delay",
-            ], [f"Shipment API returned status={output['status']}", f"Delay hours={output['delay_hours']}"]
-
-        sku = self._identifier(message, r"SKU-[A-Z]+-\d+", "SKU-RED-42")
-        output = await self.mock_system.get(f"/mock/inventory/{sku}")
-        risk = "out of stock" if output["available"] == 0 else "available"
-        content = (
-            f"{sku} is {risk}. There are {output['available']} units available "
-            f"({output['on_hand']} on hand, {output['reserved']} reserved) across "
-            f"{output['location_count']} location{'s' if output['location_count'] != 1 else ''}."
+        handler = EMPLOYEE_HANDLERS.get(agent_id)
+        if handler is None:
+            raise ValueError(f"No deterministic employee runner for {agent_id}")
+        result = await handler(self.mock_system, request.message)
+        return (
+            self._tool(
+                result["tool_id"],
+                result["tool_name"],
+                result["inputs"],
+                result["output"],
+            ),
+            result["content"],
+            result["criteria"],
+            result["evidence"],
         )
-        return self._tool("check-inventory", "check_inventory", {"sku": sku}, output), content, [
-            "Identify the requested SKU",
-            "Report available inventory",
-            "Explain stockout risk using live quantities",
-        ], [f"Inventory API returned available={output['available']}", f"Matched sku={sku}"]
-
-    @staticmethod
-    def _identifier(message: str, pattern: str, fallback: str) -> str:
-        match = re.search(pattern, message)
-        return match.group(0) if match else fallback
 
     @staticmethod
     def _tool(tool_id: str, name: str, inputs: dict, output: dict) -> ToolCallRecord:

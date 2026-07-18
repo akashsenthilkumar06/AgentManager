@@ -102,7 +102,9 @@ def test_endpoint_update_discovers_and_calls_standalone_mcp_agent(
         fake_openai_response,
     )
 
-    agent = client.get("/api/managed-agents").json()[0]
+    agent = next(
+        item for item in client.get("/api/managed-agents").json() if item["id"] == "support-agent"
+    )
     endpoint = "http://standalone-agent.test/mcp"
     updated = client.patch(
         f"/api/managed-agents/{agent['id']}",
@@ -161,7 +163,9 @@ def test_http_agent_without_llm_key_uses_visible_fallback(client, monkeypatch):
         "api_key",
         None,
     )
-    agent = client.get("/api/managed-agents").json()[0]
+    agent = next(
+        item for item in client.get("/api/managed-agents").json() if item["id"] == "finance-agent"
+    )
     endpoint = "http://127.0.0.1:8100/mcp"
     updated = client.patch(
         f"/api/managed-agents/{agent['id']}",
@@ -173,7 +177,7 @@ def test_http_agent_without_llm_key_uses_visible_fallback(client, monkeypatch):
         "/api/conversations/message",
         json={
             "agent_id": agent["id"],
-            "message": "What is the status of ORD-1042?",
+            "message": "What is the status of INV-2048?",
             "context_mode": "minimal",
         },
     )
@@ -183,7 +187,7 @@ def test_http_agent_without_llm_key_uses_visible_fallback(client, monkeypatch):
     assert answer["provider"] == "local:fallback"
     assert answer["endpoint"] == endpoint
     assert answer["fallback_reason"] == "OPENAI_API_KEY is not configured"
-    assert answer["tool_calls"][0]["tool_name"] == "lookup_order"
+    assert answer["tool_calls"][0]["tool_name"] == "lookup_invoice"
     assert answer["verification"]["evidence"][0].startswith(
         "Live MCP unavailable; deterministic fallback:"
     )
@@ -333,7 +337,9 @@ def test_generated_tool_is_attached_and_called_in_live_conversation(
 
 
 def test_endpoint_validation_rejects_unsupported_schemes(client):
-    agent = client.get("/api/managed-agents").json()[0]
+    agent = next(
+        item for item in client.get("/api/managed-agents").json() if item["id"] == "finance-agent"
+    )
     response = client.patch(
         f"/api/managed-agents/{agent['id']}",
         json=_agent_update(agent, "file:///tmp/not-an-mcp-server"),
@@ -353,7 +359,9 @@ def test_discovery_connection_failure_returns_actionable_error(
         "transport",
         httpx.MockTransport(fail_connection),
     )
-    agent = client.get("/api/managed-agents").json()[0]
+    agent = next(
+        item for item in client.get("/api/managed-agents").json() if item["id"] == "finance-agent"
+    )
     endpoint = "http://offline-agent.test/mcp"
     updated = client.patch(
         f"/api/managed-agents/{agent['id']}",

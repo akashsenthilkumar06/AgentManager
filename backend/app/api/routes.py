@@ -24,21 +24,6 @@ from backend.app.core.models import (
 from backend.app.dependencies import (
     architecture_agent,
     agentic_manager,
-    agent_process_manager,
-    benchmark_agent,
-    conversation_agent,
-    execute_registered_tool,
-    import_agent,
-    managed_workspace,
-    manager_agent,
-    mock_system,
-    monitoring_agent,
-    runtime,
-    settings,
-    store,
-    workspace_access,
-)
-
 
 router = APIRouter()
 
@@ -503,7 +488,6 @@ async def execute_tool(tool_id: str, request: ExecuteRequest) -> dict[str, Any]:
         return {"tool": tool.name, "status": "success", "result": result}
     except (ValueError, LookupError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-
 @router.post("/api/reset")
 async def reset_demo() -> dict[str, str]:
     store.reset()
@@ -518,14 +502,19 @@ async def mock_order(order_id: str) -> dict[str, Any]:
     return await _mock_response(f"/mock/orders/{order_id}")
 
 
-@router.get("/mock/shipments/by-order/{order_id}")
-async def mock_shipment(order_id: str) -> dict[str, Any]:
-    return await _mock_response(f"/mock/shipments/by-order/{order_id}")
+@router.get("/mock/invoices/{invoice_id}")
+async def mock_invoice(invoice_id: str) -> dict[str, Any]:
+    return await _mock_response(f"/mock/invoices/{invoice_id}")
 
 
-@router.get("/mock/inventory/{sku}")
-async def mock_inventory(sku: str) -> dict[str, Any]:
-    return await _mock_response(f"/mock/inventory/{sku}")
+@router.get("/mock/codebase/{repo_id}")
+async def mock_codebase(repo_id: str) -> dict[str, Any]:
+    return await _mock_response(f"/mock/codebase/{repo_id}")
+
+
+@router.get("/mock/tickets/{ticket_id}")
+async def mock_ticket(ticket_id: str) -> dict[str, Any]:
+    return await _mock_response(f"/mock/tickets/{ticket_id}")
 
 
 @router.get("/mock/customers/{customer_id}")

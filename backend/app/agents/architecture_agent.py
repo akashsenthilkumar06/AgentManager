@@ -21,6 +21,9 @@ ALIASES = {
     "shipment": {"shipments", "shipping", "delivery", "carrier", "tracking", "logistics", "delay", "delays"},
     "inventory": {"inventory", "stock", "availability", "sku", "catalog"},
     "customer": {"customers", "profile", "support", "shopper"},
+    "finance": {"invoice", "invoices", "billing", "payment", "payments"},
+    "code": {"coding", "repo", "repository", "review", "test", "tests", "bug", "build", "release"},
+    "support": {"ticket", "tickets", "helpdesk", "case", "cases"},
     "summary": {"summarize", "summary", "explain", "brief"},
 }
 
