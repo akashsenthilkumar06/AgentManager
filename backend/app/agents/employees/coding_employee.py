@@ -11,7 +11,7 @@ REQUIRED_TOOL = ("review-code", "review_code")
 
 
 async def run(mock_system: MockSystem, message: str) -> dict[str, Any]:
-    repo_id = _identifier(message.upper(), r"REPO-\\d+", "REPO-1")
+    repo_id = _identifier(message.upper(), r"REPO-\d+", "REPO-1")
     output = await mock_system.get(f"/mock/codebase/{repo_id}")
     content = (
         f"{repo_id} is {output['status'].replace('_', ' ')}. "

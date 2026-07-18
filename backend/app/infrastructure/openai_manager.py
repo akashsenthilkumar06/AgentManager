@@ -127,7 +127,7 @@ class OpenAIManagerLoop:
         {
             "type": "function",
             "name": "runtime_discover",
-            "description": "Connect to the selected agent's MCP endpoint and refresh the tools it really advertises.",
+            "description": "Connect to the selected agent's MCP endpoint and refresh the tools it really advertises. For an imported local agent that is not listening yet, the runtime operator automatically launches its saved run command in the background.",
             "strict": True,
             "parameters": {
                 "type": "object",

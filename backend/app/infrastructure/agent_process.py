@@ -54,6 +54,8 @@ class AgentProcessManager:
         args = shlex.split(command)
         if not args:
             raise ValueError("Run command is empty")
+        original_executable = args[0]
+        args[0] = self._workspace_executable(args[0], cwd)
         with self._lock:
             current = self._processes.get(agent_id)
             if current and current.process.poll() is None:
@@ -75,6 +77,11 @@ class AgentProcessManager:
                 process=process,
                 started_at=datetime.now(timezone.utc).isoformat(),
             )
+            if args[0] != original_executable:
+                record.logs.append(
+                    "Agent Manager selected the workspace runtime: "
+                    f"{args[0]}"
+                )
             self._processes[agent_id] = record
             thread = threading.Thread(
                 target=self._capture_logs,
@@ -160,6 +167,26 @@ class AgentProcessManager:
                 for marker in cls.SENSITIVE_ENV_MARKERS
             )
         }
+
+    @staticmethod
+    def _workspace_executable(executable: str, cwd: Path) -> str:
+        """Prefer an imported agent's own virtual environment."""
+        if "/" in executable or executable not in {
+            "python",
+            "python3",
+            "uvicorn",
+        }:
+            return executable
+        names = (
+            ("python", "python3")
+            if executable in {"python", "python3"}
+            else ("uvicorn",)
+        )
+        for name in names:
+            candidate = cwd / ".venv" / "bin" / name
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return str(candidate)
+        return executable
 
     @staticmethod
     def _capture_logs(record: AgentProcess) -> None:

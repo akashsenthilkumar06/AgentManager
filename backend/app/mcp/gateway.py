@@ -153,7 +153,7 @@ MCP_TOOLS = {
         },
         {
             "name": "runtime.discover",
-            "description": "Connect to the selected agent's MCP endpoint and refresh its real advertised tools.",
+            "description": "Connect to the selected agent's MCP endpoint and refresh its real advertised tools, starting a stopped imported local runtime from its saved command when needed.",
             "inputSchema": {
                 "type": "object",
                 "required": ["agent_id"],

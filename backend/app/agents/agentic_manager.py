@@ -99,6 +99,7 @@ class AgenticManager:
             "operational": False,
             "operation_kind": None,
             "runtime_results": [],
+            "runtime_start_blocked": False,
             "file_results": [],
             "edit_requested": edit_requested,
             "file_requested": (
@@ -520,9 +521,19 @@ class AgenticManager:
                     }
                     and state["autonomy"] != "auto"
                 ):
+                    if name == "runtime_start":
+                        state["runtime_start_blocked"] = True
                     raise ValueError(
                         "Starting, stopping, or calling a managed agent "
                         "requires Auto permission"
+                    )
+                if (
+                    name == "runtime_discover"
+                    and state.get("runtime_start_blocked")
+                ):
+                    raise ValueError(
+                        "Discovery did not auto-start the agent because the "
+                        "explicit start request requires Auto permission"
                     )
                 remote_tool = {
                     "runtime_status": "runtime.status",
@@ -1099,10 +1110,17 @@ class AgenticManager:
                 f"{process.get('pid')}."
             )
         if remote_tool == "runtime.discover":
+            startup = (
+                " Agent Manager started the saved local runtime in the "
+                "background first."
+                if result.get("auto_started")
+                else ""
+            )
             return (
                 f"Runtime MCP connected to {result.get('server_name')} "
                 f"at {result.get('endpoint')} and discovered "
                 f"{len(result.get('tools', []))} real tools."
+                f"{startup}"
             )
         output = result.get("output", {})
         if not isinstance(output, dict):

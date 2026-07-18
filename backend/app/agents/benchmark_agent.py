@@ -24,6 +24,7 @@ RegisteredToolExecutor = Callable[
     [str, dict[str, Any]],
     Awaitable[dict[str, Any]],
 ]
+LiveAgentPreparer = Callable[[str], Awaitable[AgentRecord]]
 
 
 class BenchmarkAgent:
@@ -34,10 +35,12 @@ class BenchmarkAgent:
         store: JsonStore,
         mcp_client: ManagedAgentMCPClient,
         registered_tool_executor: RegisteredToolExecutor,
+        live_agent_preparer: LiveAgentPreparer | None = None,
     ):
         self.store = store
         self.mcp_client = mcp_client
         self.registered_tool_executor = registered_tool_executor
+        self.live_agent_preparer = live_agent_preparer
 
     async def run(self, agent_id: str) -> BenchmarkRun:
         architecture = self.store.architecture()
@@ -47,6 +50,24 @@ class BenchmarkAgent:
         )
         if managed is None:
             raise ValueError("Managed agent not found")
+        readiness_note: str | None = None
+        if (
+            self.live_agent_preparer is not None
+            and managed.mcp_endpoint
+            and managed.mcp_endpoint.startswith(("http://", "https://"))
+        ):
+            try:
+                managed = await self.live_agent_preparer(managed.id)
+                readiness_note = (
+                    "Agent Manager verified the live MCP boundary and started "
+                    "the imported local runtime in the background when needed."
+                )
+            except Exception as exc:
+                readiness_note = (
+                    "Agent Manager could not ready the live MCP boundary before "
+                    f"the benchmark: {str(exc)[:300]}"
+                )
+            architecture = self.store.architecture()
         baseline = self._baseline_agent(managed)
         registered = {tool.id: tool for tool in architecture.tools}
         baseline_tools = self._available_tools(
@@ -139,6 +160,7 @@ class BenchmarkAgent:
                     "structured grounding, and verification readiness."
                 ),
                 "No OpenAI call is used by the benchmark runner.",
+                *([readiness_note] if readiness_note else []),
             ],
         )
         self.store.upsert_benchmark(run)

@@ -232,15 +232,64 @@ struct ImportAgentSheet: View {
                 .buttonStyle(.plain)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Agent directory").font(.caption.weight(.medium))
-                HStack {
-                    TextField("/Users/you/projects/my-agent", text: $path)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.body.monospaced())
-                    Button("Choose…") { chooseDirectory() }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Agent folder").font(.caption.weight(.medium))
+
+                if path.isEmpty {
+                    Button {
+                        chooseDirectory()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "folder.badge.plus")
+                                .font(.title2)
+                                .foregroundStyle(AppTheme.accent)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Choose Agent Folder…")
+                                    .font(.callout.weight(.semibold))
+                                Text("Finder will open so you can select the agent's project directory.")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.secondaryText)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                        .padding(14)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .background(AppTheme.raised)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(AppTheme.accent.opacity(0.35), lineWidth: 1)
+                    }
+                } else {
+                    HStack(spacing: 12) {
+                        Image(systemName: "folder.fill")
+                            .font(.title2)
+                            .foregroundStyle(AppTheme.accent)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(URL(fileURLWithPath: path).lastPathComponent)
+                                .font(.callout.weight(.semibold))
+                            Text(path)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(AppTheme.secondaryText)
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                        }
+                        Spacer()
+                        Button("Change Folder…") {
+                            chooseDirectory()
+                        }
                         .buttonStyle(.bordered)
+                    }
+                    .padding(14)
+                    .background(AppTheme.raised)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
+
                 Text("Secrets, environments, dependencies, builds, and Git internals stay excluded.")
                     .font(.caption)
                     .foregroundStyle(AppTheme.secondaryText)
@@ -310,7 +359,13 @@ struct ImportAgentSheet: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Import Agent"
+        panel.canCreateDirectories = false
+        panel.resolvesAliases = true
+        panel.message = "Choose the root folder for the agent you want to manage."
+        panel.prompt = "Choose Agent Folder"
+        if !path.isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: path)
+        }
         if panel.runModal() == .OK, let url = panel.url {
             path = url.path
             if name.isEmpty {
@@ -479,12 +534,13 @@ struct AgentDetailView: View {
                 .surface()
             }
 
-            AgentModelSettingsView(agent: agent)
             MCPConnectionView(agent: agent)
 
             if agent.imported {
                 ImportedRuntimeView(agent: agent)
             }
+
+            AgentModelSettingsView(agent: agent)
         }
     }
 
@@ -678,16 +734,17 @@ struct ImportedRuntimeView: View {
     @State private var runtime: AgentProcessStatus?
     @State private var command = ""
     @State private var working = false
+    @State private var showingLogs = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("CONNECTED LOCAL RUNTIME")
+                    Text("LOCAL RUNTIME")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(AppTheme.accent)
-                    Text("Source and process").font(.title3.weight(.semibold))
-                    Text("The Manager reads this directory as scoped context. Only the command shown below is executed.")
+                    Text("Background process").font(.title3.weight(.semibold))
+                    Text("Agent Manager owns this process. Discovery, client tests, and benchmarks start it on demand, and closing Agent Manager stops it.")
                         .foregroundStyle(AppTheme.secondaryText)
                 }
                 Spacer()
@@ -732,7 +789,7 @@ struct ImportedRuntimeView: View {
                     .tint(AppTheme.danger)
                     .disabled(working)
                 } else {
-                    Button(working ? "Starting…" : "Start Agent") {
+                    Button(working ? "Starting…" : "Run Now") {
                         Task { await start() }
                     }
                     .buttonStyle(.borderedProminent)
@@ -743,18 +800,7 @@ struct ImportedRuntimeView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("RUNTIME OUTPUT")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(AppTheme.secondaryText)
-                    Spacer()
-                    Text(runtime?.pid.map { "PID \($0)" }
-                         ?? runtime?.exitCode.map { "Exited \($0)" }
-                         ?? "Not running")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(AppTheme.secondaryText)
-                }
+            DisclosureGroup(isExpanded: $showingLogs) {
                 ScrollView([.vertical, .horizontal]) {
                     Text(runtime?.logs.joined(separator: "\n")
                          ?? "Process output appears here after the agent starts.")
@@ -766,6 +812,18 @@ struct ImportedRuntimeView: View {
                 .padding(10)
                 .background(Color.black.opacity(0.22))
                 .clipShape(RoundedRectangle(cornerRadius: 7))
+                .padding(.top, 8)
+            } label: {
+                HStack {
+                    Label("Runtime output", systemImage: "terminal")
+                        .font(.callout.weight(.medium))
+                    Spacer()
+                    Text(runtime?.pid.map { "PID \($0)" }
+                         ?? runtime?.exitCode.map { "Exited \($0)" }
+                         ?? "Starts on demand")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
             }
         }
         .surface()
@@ -803,7 +861,7 @@ struct ImportedRuntimeView: View {
                 body: AgentProcessStartRequest(command: command)
             )
             try await store.refresh()
-            store.show("\(agent.name) started.")
+            store.show("\(agent.name) is running in the background.")
         } catch {
             store.show(error.localizedDescription, error: true)
         }
@@ -848,25 +906,24 @@ struct AgentModelSettingsView: View {
     private var effectiveReasoning: String {
         reasoning.isEmpty ? (provider?.reasoningEffort ?? "provider default") : reasoning
     }
+    private var providerReady: Bool { provider?.configured == true }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("LIVE REASONING")
+                    Text("MODEL & REASONING")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(AppTheme.accent)
-                    Text("OpenAI model").font(.title3.weight(.semibold))
-                    Text("Choose the model and reasoning effort used when Manager or Test mode performs OpenAI-backed work for this agent.")
+                    Text("Reasoning settings").font(.title3.weight(.semibold))
+                    Text("Choose the OpenAI model used by both Manager and Test work for this agent.")
                         .foregroundStyle(AppTheme.secondaryText)
                 }
                 Spacer()
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("EFFECTIVE MODEL")
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.secondaryText)
-                    Text(effectiveModel)
-                        .font(.caption.monospaced().weight(.semibold))
+                HStack(spacing: 7) {
+                    StatusDot(status: providerReady ? "healthy" : "offline")
+                    Text(providerReady ? "OpenAI ready" : "OpenAI not configured")
+                        .font(.caption.weight(.medium))
                 }
                 .padding(10)
                 .background(Color.white.opacity(0.045))
@@ -884,6 +941,8 @@ struct AgentModelSettingsView: View {
                         }
                     }
                     .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     Text(selectedOption?.description ?? "Uses the model configured by OPENAI_MODEL.")
                         .font(.caption2)
                         .foregroundStyle(AppTheme.secondaryText)
@@ -901,6 +960,8 @@ struct AgentModelSettingsView: View {
                         }
                     }
                     .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     Text("Higher effort can improve difficult work, with more latency and token usage.")
                         .font(.caption2)
                         .foregroundStyle(AppTheme.secondaryText)
@@ -908,21 +969,30 @@ struct AgentModelSettingsView: View {
                 }
                 .frame(maxWidth: .infinity)
 
-                Button(saving ? "Saving…" : "Save Model") {
+                Button(saving ? "Saving…" : "Save Settings") {
                     Task { await save() }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(saving)
             }
 
-            Label(
-                "OpenAI-backed runs use \(effectiveModel) with \(effectiveReasoning) reasoning and record the provider in their evidence.",
-                systemImage: "sparkles"
-            )
-            .font(.caption)
-            .foregroundStyle(AppTheme.secondaryText)
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(AppTheme.accent)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(effectiveModel) · \(effectiveReasoning) reasoning")
+                        .font(.caption.monospaced().weight(.semibold))
+                    Text("Reasoning effort controls internal deliberation. The UI shows the useful audit trail—tool calls, evidence, and verification—not hidden chain-of-thought.")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+            }
+            .padding(11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.black.opacity(0.14))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
-        .liquidGlass(cornerRadius: 16, interactive: true)
+        .surface()
         .onAppear {
             model = agent.openaiModel ?? ""
             reasoning = agent.openaiReasoningEffort ?? ""
@@ -966,20 +1036,34 @@ struct MCPConnectionView: View {
     @State private var testing = false
     @State private var result: String?
     @State private var resultStatus = ""
+    @State private var runtime: AgentProcessStatus?
 
     private var displayedAgent: AgentRecord {
         store.agents.first { $0.id == agent.id } ?? agent
+    }
+    private var managedLocally: Bool {
+        agent.imported && !(agent.runCommand ?? "").isEmpty
+    }
+    private var testButtonTitle: String {
+        if testing {
+            return managedLocally ? "Starting & Discovering…" : "Connecting…"
+        }
+        return managedLocally ? "Start & Discover" : "Test & Discover"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("LIVE AGENT CONNECTION")
+                    Text("MCP CONNECTION")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(AppTheme.accent)
-                    Text("MCP endpoint").font(.title3.weight(.semibold))
-                    Text("Connect this managed agent to a demo://, http://, or https:// MCP server.")
+                    Text("Runtime connection").font(.title3.weight(.semibold))
+                    Text(
+                        managedLocally
+                        ? "Agent Manager starts the saved local command in the background, waits for MCP, and discovers the real tools."
+                        : "Connect this managed agent to a demo://, http://, or https:// MCP server."
+                    )
                         .foregroundStyle(AppTheme.secondaryText)
                 }
                 Spacer()
@@ -998,17 +1082,24 @@ struct MCPConnectionView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(saving || testing)
-                Button(testing ? "Connecting…" : "Test & Discover") {
+                Button(testButtonTitle) {
                     Task { await testConnection() }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(saving || testing || endpoint.trimmingCharacters(in: .whitespaces).isEmpty)
             }
 
-            Label(
-                "HTTP(S) endpoints use Live MCP when an OpenAI API key is configured. Fallbacks remain clearly labeled.",
-                systemImage: "info.circle"
-            )
+            HStack(spacing: 18) {
+                Label(
+                    managedLocally
+                    ? (runtime?.status == "running" ? "Background runtime running" : "Starts automatically when needed")
+                    : "Remote runtime",
+                    systemImage: managedLocally ? "gearshape.2" : "network"
+                )
+                Label("Initialize", systemImage: "1.circle")
+                Label("Discover tools", systemImage: "2.circle")
+                Label("Run live tests", systemImage: "3.circle")
+            }
             .font(.caption)
             .foregroundStyle(AppTheme.secondaryText)
 
@@ -1050,6 +1141,7 @@ struct MCPConnectionView: View {
         }
         .surface()
         .onAppear { endpoint = agent.mcpEndpoint ?? "" }
+        .task { await loadRuntime() }
     }
 
     private func inputCount(_ tool: MCPToolCapability) -> Int {
@@ -1100,12 +1192,19 @@ struct MCPConnectionView: View {
             testing = false
             return
         }
+        await loadRuntime()
+        let wasRunning = runtime?.status == "running"
         do {
             let discovered: AgentRecord = try await api.post(
                 "/api/managed-agents/\(agent.id)/discover"
             )
             endpoint = discovered.mcpEndpoint ?? ""
-            result = "Connected to \(discovered.mcpServerName ?? "MCP server")."
+            await loadRuntime()
+            if managedLocally && !wasRunning && runtime?.status == "running" {
+                result = "Started in the background and connected to \(discovered.mcpServerName ?? "MCP server")."
+            } else {
+                result = "Connected to \(discovered.mcpServerName ?? "MCP server")."
+            }
             resultStatus = "passed"
             try await store.refresh()
             store.show("Discovered \(discovered.mcpTools.count) live MCP tools.")
@@ -1115,6 +1214,13 @@ struct MCPConnectionView: View {
             store.show(error.localizedDescription, error: true)
         }
         testing = false
+    }
+
+    private func loadRuntime() async {
+        guard managedLocally, let api = store.api else { return }
+        runtime = try? await api.get(
+            "/api/managed-agents/\(agent.id)/process"
+        )
     }
 }
 

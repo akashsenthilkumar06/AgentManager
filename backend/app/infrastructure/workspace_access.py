@@ -321,9 +321,16 @@ class WorkspaceAccess:
                     commands.append(target)
             except (ValueError, OSError):
                 pass
+        workspace_python = (
+            ".venv/bin/python"
+            if (
+                workspace_root / ".venv" / "bin" / "python"
+            ).is_file()
+            else "python"
+        )
         for filename in ("main.py", "app.py", "server.py"):
             if (workspace_root / filename).is_file():
-                commands.append(f"python {filename}")
+                commands.append(f"{workspace_python} {filename}")
 
         readme = next(
             (

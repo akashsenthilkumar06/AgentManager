@@ -169,7 +169,7 @@ function Verification({ verification, contextUsed, toolCalls }) {
   if (!verification) return null;
   return <div className={`verification-card ${open ? "open" : ""}`}>
     <button className="verification-summary" onClick={() => setOpen((value) => !value)}>
-      <span className="verified-icon">✓</span>
+      <span className="verified-icon">{verification.status === "failed" ? "!" : "✓"}</span>
       <span><strong>Output {verification.status}</strong><small>{Math.round(verification.confidence * 100)}% confidence · {toolCalls.length} tool{toolCalls.length === 1 ? "" : "s"} used</small></span>
       <b>{open ? "Hide evidence" : "See evidence"}</b>
     </button>
@@ -183,6 +183,9 @@ function ExecutionReceipt({ message }) {
     return <div className="execution-receipt live"><span><i />Live MCP</span><code>{message.provider}</code><small>{message.endpoint}</small></div>;
   }
   if (mode === "fallback") {
+    if (message.provider === "local:error") {
+      return <div className="execution-receipt fallback"><span><i />Live MCP failed</span><div><strong>No demo response was substituted.</strong><small>{message.fallback_reason || "The managed runtime was unavailable."}</small></div></div>;
+    }
     return <div className="execution-receipt fallback"><span><i />Fallback demo</span><div><strong>The live agent was not used for this answer.</strong><small>{message.fallback_reason || "Live MCP was unavailable."}</small></div></div>;
   }
   return <div className="execution-receipt deterministic"><span><i />Local demo</span><small>Deterministic fixture response</small></div>;

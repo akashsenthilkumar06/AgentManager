@@ -98,6 +98,7 @@ benchmark_agent = BenchmarkAgent(
     store,
     mcp_client,
     execute_registered_tool,
+    managed_agent_operator.prepare_live,
 )
 developer_agent = DeveloperAgent()
 validation_agent = ValidationAgent(runtime, mock_system)
@@ -128,6 +129,7 @@ conversation_agent = ConversationAgent(
     store,
     cloud_data,
     live_conversation_runner,
+    managed_agent_operator.prepare_live,
 )
 openai_manager_loop = OpenAIManagerLoop(openai_provider)
 agentic_manager = AgenticManager(

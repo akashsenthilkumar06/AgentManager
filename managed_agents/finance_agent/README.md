@@ -19,13 +19,19 @@ Health: `GET http://127.0.0.1:8080/health`.
 
 To manage it in the UI, open **Managed agents**, choose **Add agent**, and use:
 
-- Directory: the absolute path to `managed_agents/finance_agent`
-- Run command: `.venv/bin/uvicorn finance_agent.app:app --app-dir .. --host 127.0.0.1 --port 8080`
+- Folder: select `managed_agents/finance_agent` in the Finder picker
+- Run command: leave blank to detect `.venv/bin/python app.py`
 - MCP endpoint: `http://127.0.0.1:8080/mcp`
 
-The Finance Agent remains a separate process even though its source is kept
-inside this repository. This lets Agent Manager inspect, start, stop, discover,
-and call it through the same boundaries used for any external managed agent.
+Bare `python app.py` is also supported: Agent Manager resolves it through the
+selected workspace's `.venv` when one is available. Both forms start the same
+HTTP MCP service on port `8080` (override with `FINANCE_AGENT_PORT`).
+
+The Finance Agent remains a separate child process even though its source is
+kept inside this repository. **Start & Discover**, Test mode, and benchmarks
+can launch that process automatically from its saved command, so a second
+terminal is not required. Agent Manager still discovers and calls it through
+the same HTTP MCP boundary used for any external managed agent.
 
 ## MCP example
 

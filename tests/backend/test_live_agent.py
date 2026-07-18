@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import shlex
+import sys
 
 import httpx
 
@@ -403,5 +405,219 @@ def test_discovery_connection_failure_returns_actionable_error(
     )
     assert response.status_code == 502
     assert response.json()["detail"].startswith(
-        "Could not connect to the MCP endpoint:"
+        "Could not reach the MCP endpoint."
     )
+
+
+def test_imported_agent_auto_starts_for_discovery_and_live_test(
+    client,
+    monkeypatch,
+    tmp_path,
+    unused_tcp_port,
+):
+    project = tmp_path / "auto-start-agent"
+    project.mkdir()
+    server = project / "server.py"
+    server.write_text(
+        """import json
+import sys
+from http.server import BaseHTTPRequestHandler
+from socketserver import ThreadingTCPServer
+
+class Server(ThreadingTCPServer):
+    allow_reuse_address = True
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        return
+
+    def do_POST(self):
+        size = int(self.headers.get('Content-Length', '0'))
+        request = json.loads(self.rfile.read(size))
+        method = request.get('method')
+        if method == 'initialize':
+            result = {'protocolVersion': '2025-06-18', 'capabilities': {'tools': {}}, 'serverInfo': {'name': 'auto-start-test-agent', 'version': '1.0'}}
+        elif method == 'tools/list':
+            result = {'tools': [{'name': 'test.echo', 'description': 'Echo a value from the real child process.', 'inputSchema': {'type': 'object', 'properties': {'value': {'type': 'string'}}, 'required': ['value']}}]}
+        elif method in {'prompts/list', 'resources/list'}:
+            result = {'prompts': []} if method == 'prompts/list' else {'resources': []}
+        elif method == 'tools/call':
+            value = request.get('params', {}).get('arguments', {}).get('value')
+            payload = {'source': 'auto-started-agent', 'value': value, 'proof': 'REAL-CHILD-PROCESS'}
+            result = {'content': [{'type': 'text', 'text': json.dumps(payload)}], 'isError': False}
+        else:
+            result = {}
+        body = json.dumps({'jsonrpc': '2.0', 'id': request.get('id'), 'result': result}).encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+Server(('127.0.0.1', int(sys.argv[1])), Handler).serve_forever()
+""",
+        encoding="utf-8",
+    )
+    endpoint = f"http://127.0.0.1:{unused_tcp_port}/mcp"
+    command = (
+        f"{shlex.quote(sys.executable)} -u server.py {unused_tcp_port}"
+    )
+    imported = client.post(
+        "/api/managed-agents/import",
+        json={
+            "path": str(project),
+            "name": "Auto Start Agent",
+            "run_command": command,
+            "mcp_endpoint": endpoint,
+        },
+    )
+    assert imported.status_code == 200
+    agent = imported.json()["agent"]
+    assert imported.json()["process"]["status"] == "stopped"
+
+    discovered = client.post(
+        f"/api/managed-agents/{agent['id']}/discover",
+        json={},
+    )
+    assert discovered.status_code == 200
+    assert discovered.json()["mcp_server_name"] == "auto-start-test-agent"
+    assert [
+        tool["name"] for tool in discovered.json()["mcp_tools"]
+    ] == ["test.echo"]
+    process = client.get(
+        f"/api/managed-agents/{agent['id']}/process"
+    ).json()
+    assert process["status"] == "running"
+    assert process["pid"]
+
+    stopped = client.post(
+        f"/api/managed-agents/{agent['id']}/process/stop",
+        json={},
+    )
+    assert stopped.status_code == 200
+    assert stopped.json()["status"] == "stopped"
+
+    monkeypatch.setattr(
+        dependencies.live_conversation_runner,
+        "api_key",
+        "test-openai-key",
+    )
+    responses: list[dict] = []
+
+    async def fake_openai_response(_client, body):
+        responses.append(body)
+        if len(responses) == 1:
+            return {
+                "output": [
+                    {
+                        "type": "function_call",
+                        "id": "function_auto_start_1",
+                        "call_id": "call_auto_start_1",
+                        "name": "test_echo",
+                        "arguments": json.dumps({"value": "hello"}),
+                    }
+                ]
+            }
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "id": "message_auto_start_1",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": (
+                                "The live child process returned hello with "
+                                "proof REAL-CHILD-PROCESS."
+                            ),
+                        }
+                    ],
+                }
+            ],
+            "output_text": (
+                "The live child process returned hello with proof "
+                "REAL-CHILD-PROCESS."
+            ),
+        }
+
+    monkeypatch.setattr(
+        dependencies.live_conversation_runner,
+        "_create_response",
+        fake_openai_response,
+    )
+    conversation = client.post(
+        "/api/conversations/message",
+        json={
+            "agent_id": agent["id"],
+            "message": "Echo hello through the live tool.",
+            "context_mode": "full",
+        },
+    )
+    assert conversation.status_code == 200
+    answer = conversation.json()["messages"][-1]
+    assert answer["execution_mode"] == "live"
+    assert answer["fallback_reason"] is None
+    assert answer["tool_calls"][0]["tool_name"] == "test.echo"
+    assert answer["tool_calls"][0]["output"] == {
+        "source": "auto-started-agent",
+        "value": "hello",
+        "proof": "REAL-CHILD-PROCESS",
+    }
+    restarted = client.get(
+        f"/api/managed-agents/{agent['id']}/process"
+    ).json()
+    assert restarted["status"] == "running"
+    assert restarted["pid"]
+    assert len(responses) == 2
+
+
+def test_imported_agent_runtime_failure_never_returns_demo_data(
+    client,
+    monkeypatch,
+    tmp_path,
+):
+    project = tmp_path / "broken-live-agent"
+    project.mkdir()
+    (project / "app.py").write_text(
+        "raise RuntimeError('intentional startup failure')\n",
+        encoding="utf-8",
+    )
+    imported = client.post(
+        "/api/managed-agents/import",
+        json={
+            "path": str(project),
+            "name": "Broken Live Agent",
+            "run_command": f"{sys.executable} app.py",
+            "mcp_endpoint": "http://127.0.0.1:1/mcp",
+        },
+    )
+    assert imported.status_code == 200
+    agent = imported.json()["agent"]
+    monkeypatch.setattr(
+        dependencies.live_conversation_runner,
+        "api_key",
+        "test-openai-key",
+    )
+
+    conversation = client.post(
+        "/api/conversations/message",
+        json={
+            "agent_id": agent["id"],
+            "message": "What is INV-1045?",
+            "context_mode": "full",
+        },
+    )
+
+    assert conversation.status_code == 200
+    answer = conversation.json()["messages"][-1]
+    assert answer["execution_mode"] == "fallback"
+    assert answer["provider"] == "local:error"
+    assert answer["tool_calls"][0]["status"] == "failed"
+    assert answer["tool_calls"][0]["provider"] == "agent_mcp"
+    assert "No placeholder or demo invoice data was returned" in (
+        answer["content"]
+    )
+    assert "INV-2048" not in answer["content"]
+    assert answer["verification"]["status"] == "failed"
+    assert "intentional startup failure" in answer["fallback_reason"]

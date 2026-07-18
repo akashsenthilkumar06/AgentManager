@@ -20,7 +20,7 @@
   "imported": true,
   "workspace_id": "workspace_47f60b44f4",
   "workspace_root": "/Users/akashsenthilkumar/Documents/Coding/AgentManager/managed_agents/finance_agent",
-  "run_command": ".venv/bin/uvicorn finance_agent.app:app --app-dir .. --host 127.0.0.1 --port 8080",
+  "run_command": "python app.py",
   "detected_entrypoints": [
     "python app.py"
   ]

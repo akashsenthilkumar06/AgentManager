@@ -11,11 +11,15 @@ struct AgentManagerNativeApp: App {
                 .preferredColorScheme(.dark)
                 .task {
                     await store.start()
+                    await Task.yield()
+                    NSApp.setActivationPolicy(.regular)
+                    NSApp.activate(ignoringOtherApps: true)
                     if ProcessInfo.processInfo.environment["AGENT_MANAGER_INITIAL_SECTION"] != nil {
-                        await Task.yield()
-                        NSApp.windows.first?.center()
-                        NSApp.windows.first?.makeKeyAndOrderFront(nil)
-                        NSApp.activate(ignoringOtherApps: true)
+                        NSApp.windows.first(where: { $0.canBecomeKey })?.center()
+                    }
+                    if let window = NSApp.windows.first(where: { $0.canBecomeKey }) {
+                        window.makeMain()
+                        window.makeKeyAndOrderFront(nil)
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(

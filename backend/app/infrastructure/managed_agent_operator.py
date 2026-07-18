@@ -123,6 +123,47 @@ class ManagedAgentOperator:
 
     async def discover(self, agent_id: str) -> dict[str, Any]:
         agent = self._agent(agent_id)
+        auto_started = False
+        try:
+            discovered = await self._discover_record(agent)
+        except httpx.RequestError:
+            if not self._can_auto_start(agent):
+                raise
+            started = await self.start(agent.id)
+            discovery = started.get("discovery")
+            if not isinstance(discovery, dict):
+                discovered = await self._discover_record(
+                    self._agent(agent.id)
+                )
+            else:
+                return {
+                    **discovery,
+                    "auto_started": not bool(
+                        started.get("already_running")
+                    ),
+                    "process": started.get("process"),
+                }
+            auto_started = not bool(started.get("already_running"))
+        return self._discovery_payload(
+            discovered,
+            auto_started=auto_started,
+        )
+
+    async def prepare_live(self, agent_id: str) -> AgentRecord:
+        """Refresh a live boundary, starting an imported local agent if needed."""
+        agent = self._agent(agent_id)
+        if not (
+            agent.mcp_endpoint
+            and agent.mcp_endpoint.startswith(("http://", "https://"))
+        ):
+            return agent
+        await self.discover(agent.id)
+        return self._agent(agent.id)
+
+    async def _discover_record(
+        self,
+        agent: AgentRecord,
+    ) -> AgentRecord:
         architecture = self.store.architecture()
         discovered = await self.architecture_agent.discover_agent(
             agent,
@@ -130,6 +171,14 @@ class ManagedAgentOperator:
         )
         self.store.update_agent(discovered)
         self.managed_workspace.sync(discovered)
+        return discovered
+
+    def _discovery_payload(
+        self,
+        discovered: AgentRecord,
+        *,
+        auto_started: bool,
+    ) -> dict[str, Any]:
         return {
             "agent_id": discovered.id,
             "endpoint": discovered.mcp_endpoint,
@@ -145,6 +194,8 @@ class ManagedAgentOperator:
             "enabled_tools": list(discovered.enabled_tools),
             "discovered_at": discovered.last_discovered_at,
             "status": discovered.status,
+            "auto_started": auto_started,
+            "process": self.process_manager.status(discovered.id),
         }
 
     async def call_tool(
@@ -154,6 +205,11 @@ class ManagedAgentOperator:
         arguments: dict[str, Any],
     ) -> dict[str, Any]:
         agent = self._agent(agent_id)
+        if (
+            agent.mcp_endpoint
+            and agent.mcp_endpoint.startswith(("http://", "https://"))
+        ):
+            agent = await self.prepare_live(agent.id)
         capability = next(
             (
                 tool
@@ -228,12 +284,35 @@ class ManagedAgentOperator:
         last_error: Exception | None = None
         for _ in range(40):
             process = self.process_manager.status(agent_id)
-            if process["status"] == "failed":
+            if process["status"] in {"failed", "stopped"}:
+                # Give the background stdout reader a moment to capture the
+                # final traceback before returning the startup failure.
+                await asyncio.sleep(0.05)
+                process = self.process_manager.status(agent_id)
+                logs = [
+                    str(line).strip()
+                    for line in process.get("logs", [])[-4:]
+                    if str(line).strip()
+                ]
+                detail = (
+                    f" Exit code: {process.get('exit_code')}."
+                    if process.get("exit_code") is not None
+                    else ""
+                )
+                if logs:
+                    detail += f" Runtime output: {' | '.join(logs)}"
                 raise ValueError(
-                    "Agent process exited before its MCP endpoint became ready"
+                    "Agent process exited before its MCP endpoint became "
+                    f"ready.{detail}"
                 )
             try:
-                return await self.discover(agent_id)
+                discovered = await self._discover_record(
+                    self._agent(agent_id)
+                )
+                return self._discovery_payload(
+                    discovered,
+                    auto_started=False,
+                )
             except (httpx.HTTPError, ValueError, OSError) as exc:
                 last_error = exc
                 await asyncio.sleep(0.1)
@@ -241,6 +320,17 @@ class ManagedAgentOperator:
             "Agent process started, but its MCP endpoint did not become "
             f"ready: {last_error}"
         )
+
+    def _can_auto_start(self, agent: AgentRecord) -> bool:
+        if not (
+            agent.imported
+            and agent.workspace_root
+            and agent.run_command
+            and agent.mcp_endpoint
+            and agent.mcp_endpoint.startswith(("http://", "https://"))
+        ):
+            return False
+        return self.process_manager.status(agent.id)["status"] != "running"
 
     def _agent(self, agent_id: str) -> AgentRecord:
         agent = next(

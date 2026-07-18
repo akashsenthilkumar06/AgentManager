@@ -43,7 +43,7 @@
           "Order lookup",
           "Support triage"
         ],
-        "last_discovered_at": "2026-07-18T22:57:25.558657+00:00",
+        "last_discovered_at": "2026-07-18T23:57:55.511618+00:00",
         "instructions": "Resolve order questions using current system data. Be clear about status, avoid assumptions, and recommend escalation when fulfillment evidence is incomplete.",
         "response_style": "balanced",
         "tool_policy": "automatic",
@@ -102,7 +102,7 @@
           "Shipment tracking",
           "Carrier exception detection"
         ],
-        "last_discovered_at": "2026-07-18T22:57:25.558673+00:00",
+        "last_discovered_at": "2026-07-18T23:57:55.511685+00:00",
         "instructions": "Track shipment movement using carrier events. Always surface the latest event, delivery estimate, and any active exception or delay.",
         "response_style": "balanced",
         "tool_policy": "automatic",
@@ -161,7 +161,7 @@
           "Inventory availability",
           "Stockout risk"
         ],
-        "last_discovered_at": "2026-07-18T22:57:25.558683+00:00",
+        "last_discovered_at": "2026-07-18T23:57:55.511710+00:00",
         "instructions": "Answer availability questions from live inventory quantities. Explain available, on-hand, and reserved stock without promising future replenishment.",
         "response_style": "balanced",
         "tool_policy": "automatic",
@@ -366,7 +366,7 @@
         "imported": true,
         "workspace_id": "workspace_47f60b44f4",
         "workspace_root": "/Users/akashsenthilkumar/Documents/Coding/AgentManager/managed_agents/finance_agent",
-        "run_command": ".venv/bin/uvicorn finance_agent.app:app --app-dir .. --host 127.0.0.1 --port 8080",
+        "run_command": "python app.py",
         "detected_entrypoints": [
           "python app.py"
         ]
@@ -574,14 +574,360 @@
         "status": "healthy"
       }
     ],
-    "indexed_at": "2026-07-18T22:57:25.591553+00:00"
+    "indexed_at": "2026-07-18T23:57:55.534959+00:00"
   },
   "builds": [],
   "conversations": [
     {
+      "id": "chat_19c67fa861",
+      "agent_id": "order-support-agent",
+      "title": "Can you summarize Invoice-1001",
+      "created_at": "2026-07-18T23:56:50.481070+00:00",
+      "updated_at": "2026-07-18T23:56:50.488862+00:00",
+      "messages": [
+        {
+          "id": "msg_e8bf62e128",
+          "role": "user",
+          "content": "Can you summarize Invoice-1001",
+          "created_at": "2026-07-18T23:56:50.481093+00:00",
+          "tool_calls": [],
+          "verification": null,
+          "context_used": [],
+          "execution_mode": "deterministic",
+          "provider": "local:deterministic",
+          "endpoint": null,
+          "fallback_reason": null
+        },
+        {
+          "id": "msg_fa15d46a33",
+          "role": "agent",
+          "content": "ORD-1042 is currently in transit. It contains 3 items totaling USD 128.40 and was placed on 2026-07-12T14:24:00Z.",
+          "created_at": "2026-07-18T23:56:50.488852+00:00",
+          "tool_calls": [
+            {
+              "id": "call_ed2b373a51",
+              "tool_name": "lookup_order",
+              "tool_id": "lookup-order",
+              "status": "passed",
+              "input": {
+                "order_id": "ORD-1042"
+              },
+              "output": {
+                "order_id": "ORD-1042",
+                "status": "in_transit",
+                "customer_id": "CUS-88",
+                "placed_at": "2026-07-12T14:24:00Z",
+                "total": 128.4,
+                "currency": "USD",
+                "items": 3,
+                "_data_source": "local-demo-cloud-simulator"
+              },
+              "duration_ms": 8,
+              "provider": "deterministic",
+              "endpoint": null
+            }
+          ],
+          "verification": {
+            "status": "verified",
+            "confidence": 0.96,
+            "summary": "The response matches the request and is grounded in the selected tool output.",
+            "criteria": [
+              "Identify the requested order",
+              "Report the current fulfillment status",
+              "Ground the answer in the order lookup result"
+            ],
+            "evidence": [
+              "Order API returned status=in_transit",
+              "Matched order_id=ORD-1042; source=local-demo-cloud-simulator"
+            ]
+          },
+          "context_used": [
+            "Agent profile \u00b7 Order Support Agent",
+            "Agent instructions",
+            "Tool contracts \u00b7 1"
+          ],
+          "execution_mode": "deterministic",
+          "provider": "local:deterministic",
+          "endpoint": null,
+          "fallback_reason": null
+        }
+      ]
+    },
+    {
+      "id": "chat_0a38e39ee8",
+      "agent_id": "order-support-agent",
+      "title": "What is the status of Invoice 2048?",
+      "created_at": "2026-07-18T23:50:56.073178+00:00",
+      "updated_at": "2026-07-18T23:50:56.073427+00:00",
+      "messages": [
+        {
+          "id": "msg_11b32dcad1",
+          "role": "user",
+          "content": "What is the status of Invoice 2048?",
+          "created_at": "2026-07-18T23:50:56.073223+00:00",
+          "tool_calls": [],
+          "verification": null,
+          "context_used": [],
+          "execution_mode": "deterministic",
+          "provider": "local:deterministic",
+          "endpoint": null,
+          "fallback_reason": null
+        },
+        {
+          "id": "msg_2323918d87",
+          "role": "agent",
+          "content": "I could not complete this test because unavailable is disabled in the current agent configuration.",
+          "created_at": "2026-07-18T23:50:56.073410+00:00",
+          "tool_calls": [
+            {
+              "id": "call_222fcfb8e8",
+              "tool_name": "unavailable",
+              "tool_id": null,
+              "status": "failed",
+              "input": {},
+              "output": {},
+              "duration_ms": 1,
+              "provider": "deterministic",
+              "endpoint": null
+            }
+          ],
+          "verification": {
+            "status": "failed",
+            "confidence": 0.1,
+            "summary": "The live agent request failed and no grounded business result was returned.",
+            "criteria": [
+              "Use the required grounded tool",
+              "Return a supported answer"
+            ],
+            "evidence": [
+              "Agent tool policy blocked execution"
+            ]
+          },
+          "context_used": [
+            "Agent profile \u00b7 Order Support Agent",
+            "Agent instructions",
+            "Tool contracts \u00b7 1"
+          ],
+          "execution_mode": "deterministic",
+          "provider": "local:deterministic",
+          "endpoint": null,
+          "fallback_reason": null
+        }
+      ]
+    },
+    {
+      "id": "chat_4f4fc9443a",
+      "agent_id": "finance-agent",
+      "title": "What is the status of INV-2048?",
+      "created_at": "2026-07-18T23:43:01.191201+00:00",
+      "updated_at": "2026-07-18T23:43:01.449856+00:00",
+      "messages": [
+        {
+          "id": "msg_e7460ab788",
+          "role": "user",
+          "content": "What is the status of INV-2048?",
+          "created_at": "2026-07-18T23:43:01.191242+00:00",
+          "tool_calls": [],
+          "verification": null,
+          "context_used": [],
+          "execution_mode": "deterministic",
+          "provider": "local:deterministic",
+          "endpoint": null,
+          "fallback_reason": null
+        },
+        {
+          "id": "msg_d396805f4a",
+          "role": "agent",
+          "content": "I could not query Finance Agent because its managed MCP runtime did not become ready. No placeholder or demo invoice data was returned. Open the agent's Runtime output to inspect the saved command, then retry.",
+          "created_at": "2026-07-18T23:43:01.449840+00:00",
+          "tool_calls": [
+            {
+              "id": "call_30649fdc7c",
+              "tool_name": "mcp.runtime",
+              "tool_id": null,
+              "status": "failed",
+              "input": {
+                "request": "What is the status of INV-2048?"
+              },
+              "output": {
+                "error": "Agent process exited before its MCP endpoint became ready"
+              },
+              "duration_ms": 258,
+              "provider": "agent_mcp",
+              "endpoint": "http://127.0.0.1:8080/mcp"
+            }
+          ],
+          "verification": {
+            "status": "failed",
+            "confidence": 0.1,
+            "summary": "The live agent request failed and no grounded business result was returned.",
+            "criteria": [
+              "Use the imported agent's real MCP runtime",
+              "Do not substitute unrelated deterministic fixtures"
+            ],
+            "evidence": [
+              "Live MCP startup failed: Agent process exited before its MCP endpoint became ready",
+              "No deterministic business data was returned"
+            ]
+          },
+          "context_used": [
+            "Agent profile \u00b7 Finance Agent",
+            "Agent instructions",
+            "Tool contracts \u00b7 6",
+            "Execution \u00b7 Deterministic fallback",
+            "Live endpoint \u00b7 http://127.0.0.1:8080/mcp"
+          ],
+          "execution_mode": "fallback",
+          "provider": "local:fallback",
+          "endpoint": "http://127.0.0.1:8080/mcp",
+          "fallback_reason": "Agent process exited before its MCP endpoint became ready"
+        }
+      ]
+    },
+    {
+      "id": "chat_e45dea3485",
+      "agent_id": "order-support-agent",
+      "title": "What is the company of INV-1045",
+      "created_at": "2026-07-18T23:41:41.717209+00:00",
+      "updated_at": "2026-07-18T23:41:41.717707+00:00",
+      "messages": [
+        {
+          "id": "msg_1c89ce89fa",
+          "role": "user",
+          "content": "What is the company of INV-1045",
+          "created_at": "2026-07-18T23:41:41.717236+00:00",
+          "tool_calls": [],
+          "verification": null,
+          "context_used": [],
+          "execution_mode": "deterministic",
+          "provider": "local:deterministic",
+          "endpoint": null,
+          "fallback_reason": null
+        },
+        {
+          "id": "msg_19a3ca6d23",
+          "role": "agent",
+          "content": "I could not complete this test because unavailable is disabled in the current agent configuration.",
+          "created_at": "2026-07-18T23:41:41.717683+00:00",
+          "tool_calls": [
+            {
+              "id": "call_f8ccd89425",
+              "tool_name": "unavailable",
+              "tool_id": null,
+              "status": "failed",
+              "input": {},
+              "output": {},
+              "duration_ms": 1,
+              "provider": "deterministic",
+              "endpoint": null
+            }
+          ],
+          "verification": {
+            "status": "failed",
+            "confidence": 0.1,
+            "summary": "The live agent request failed and no grounded business result was returned.",
+            "criteria": [
+              "Use the required grounded tool",
+              "Return a supported answer"
+            ],
+            "evidence": [
+              "Agent tool policy blocked execution"
+            ]
+          },
+          "context_used": [
+            "Agent profile \u00b7 Order Support Agent",
+            "Agent instructions",
+            "Tool contracts \u00b7 1"
+          ],
+          "execution_mode": "deterministic",
+          "provider": "local:deterministic",
+          "endpoint": null,
+          "fallback_reason": null
+        }
+      ]
+    },
+    {
+      "id": "chat_257505ae29",
+      "agent_id": "finance-agent",
+      "title": "What is the customer name of INV-1045",
+      "created_at": "2026-07-18T23:35:06.923421+00:00",
+      "updated_at": "2026-07-18T23:35:07.187027+00:00",
+      "messages": [
+        {
+          "id": "msg_3ff097b242",
+          "role": "user",
+          "content": "What is the customer name of INV-1045",
+          "created_at": "2026-07-18T23:35:06.923457+00:00",
+          "tool_calls": [],
+          "verification": null,
+          "context_used": [],
+          "execution_mode": "deterministic",
+          "provider": "local:deterministic",
+          "endpoint": null,
+          "fallback_reason": null
+        },
+        {
+          "id": "msg_cfc02f98a7",
+          "role": "agent",
+          "content": "INV-2048 is currently past due. It totals USD 1840.50 and is due on 2026-07-15. Notes: Partial payment received; finance follow-up needed.",
+          "created_at": "2026-07-18T23:35:07.187015+00:00",
+          "tool_calls": [
+            {
+              "id": "call_6636b0650e",
+              "tool_name": "lookup_invoice",
+              "tool_id": "lookup-invoice",
+              "status": "passed",
+              "input": {
+                "invoice_id": "INV-2048"
+              },
+              "output": {
+                "invoice_id": "INV-2048",
+                "customer_id": "CUS-88",
+                "status": "past_due",
+                "amount": 1840.5,
+                "currency": "USD",
+                "due_date": "2026-07-15",
+                "notes": "Partial payment received; finance follow-up needed.",
+                "_data_source": "local-demo-cloud-simulator"
+              },
+              "duration_ms": 263,
+              "provider": "deterministic",
+              "endpoint": null
+            }
+          ],
+          "verification": {
+            "status": "verified",
+            "confidence": 0.96,
+            "summary": "The response matches the request and is grounded in the selected tool output.",
+            "criteria": [
+              "Identify the requested invoice",
+              "Report its payment status and due date",
+              "Ground the answer in the finance ledger"
+            ],
+            "evidence": [
+              "Live MCP unavailable; deterministic fallback: Agent process exited before its MCP endpoint became ready",
+              "Invoice API returned status=past_due",
+              "Matched invoice_id=INV-2048; source=local-demo-cloud-simulator"
+            ]
+          },
+          "context_used": [
+            "Agent profile \u00b7 Finance Agent",
+            "Agent instructions",
+            "Tool contracts \u00b7 6",
+            "Execution \u00b7 Deterministic fallback",
+            "Live endpoint \u00b7 http://127.0.0.1:8080/mcp"
+          ],
+          "execution_mode": "fallback",
+          "provider": "local:fallback",
+          "endpoint": "http://127.0.0.1:8080/mcp",
+          "fallback_reason": "Agent process exited before its MCP endpoint became ready"
+        }
+      ]
+    },
+    {
       "id": "chat_907ca8fa3f",
       "agent_id": "finance-agent",
-      "title": "Use finance.query_invoices with status past_due and limit …",
+      "title": "Use finance.query_invoices with status past_due and limit \u2026",
       "created_at": "2026-07-18T22:49:48.737613+00:00",
       "updated_at": "2026-07-18T22:50:13.273519+00:00",
       "messages": [
@@ -665,16 +1011,16 @@
             ]
           },
           "context_used": [
-            "Agent profile · Finance Agent",
+            "Agent profile \u00b7 Finance Agent",
             "Agent instructions",
-            "Tool contracts · 6",
-            "Features · 6",
-            "MCP prompts · 0",
-            "MCP resources · 0",
+            "Tool contracts \u00b7 6",
+            "Features \u00b7 6",
+            "MCP prompts \u00b7 0",
+            "MCP resources \u00b7 0",
             "Recent agent conversation history",
-            "Execution · Live MCP",
-            "Endpoint · http://127.0.0.1:8080/mcp",
-            "Provider · openai:gpt-5.6-terra+mcp"
+            "Execution \u00b7 Live MCP",
+            "Endpoint \u00b7 http://127.0.0.1:8080/mcp",
+            "Provider \u00b7 openai:gpt-5.6-terra+mcp"
           ],
           "execution_mode": "live",
           "provider": "openai:gpt-5.6-terra+mcp",
@@ -794,16 +1140,16 @@
             ]
           },
           "context_used": [
-            "Agent profile · Finance Agent",
+            "Agent profile \u00b7 Finance Agent",
             "Agent instructions",
-            "Tool contracts · 6",
-            "Features · 6",
-            "MCP prompts · 0",
-            "MCP resources · 0",
+            "Tool contracts \u00b7 6",
+            "Features \u00b7 6",
+            "MCP prompts \u00b7 0",
+            "MCP resources \u00b7 0",
             "Recent agent conversation history",
-            "Execution · Live MCP",
-            "Endpoint · http://127.0.0.1:8080/mcp",
-            "Provider · openai:gpt-5.6-terra+mcp"
+            "Execution \u00b7 Live MCP",
+            "Endpoint \u00b7 http://127.0.0.1:8080/mcp",
+            "Provider \u00b7 openai:gpt-5.6-terra+mcp"
           ],
           "execution_mode": "live",
           "provider": "openai:gpt-5.6-terra+mcp",
@@ -815,9 +1161,363 @@
   ],
   "manager_conversations": [
     {
+      "id": "mgrchat_22ebb7d6bf",
+      "agent_id": "order-support-agent",
+      "title": "Should we redesign how this agent uses its current tool?",
+      "autonomy": "review",
+      "created_at": "2026-07-18T23:51:52.052285+00:00",
+      "updated_at": "2026-07-18T23:51:58.213419+00:00",
+      "messages": [
+        {
+          "id": "mgrmsg_ab70047b94",
+          "role": "user",
+          "content": "Should we redesign how this agent uses its current tool?",
+          "created_at": "2026-07-18T23:51:52.052377+00:00",
+          "actions": [],
+          "changes": [],
+          "evaluation": null,
+          "provider": "local:deterministic"
+        },
+        {
+          "id": "mgrmsg_dbff05dda4",
+          "role": "manager",
+          "content": "Yes\u2014redesign the **tool-use policy**, not necessarily the tool itself.\n\n`lookup_order` appears appropriate for the agent\u2019s stated scope and is backed by an Order Details API that returns lifecycle, customer, value, and fulfillment state. The gap is that the current instructions do not specify when and how the agent must use that evidence.\n\nRecommended behavior design:\n\n1. **Require lookup before answering order-specific questions**  \n   For status, delivery, cancellation, or fulfillment questions, call `lookup_order` when an order identifier is available.\n\n2. **Tie responses strictly to returned fields**  \n   State only the lifecycle and fulfillment facts the lookup provides. Do not infer shipment progress, delivery dates, eligibility, or root cause from incomplete data.\n\n3. **Use an explicit missing-information flow**  \n   If no order ID is supplied, ask for the minimum identifier needed to perform the lookup rather than giving generic or speculative status.\n\n4. **Define clear escalation triggers**  \n   Escalate when lookup results show\u2014or fail to rule out\u2014a fulfillment exception, such as an inconsistent lifecycle/fulfillment state, missing fulfillment evidence, or an issue requiring action the tool cannot perform.\n\n5. **Make limitations visible**  \n   The agent should not claim it changed, refunded, canceled, or expedited an order, since its current tool only retrieves core details.\n\nNo additional tool is clearly required for the current mission. A future expansion could consider customer-profile context or fulfillment-action tooling, but only if the agent is expected to resolve exceptions rather than triage and escalate them.\n\nDelegation trace:\n1) Architecture Analyst: inspect architecture",
+          "created_at": "2026-07-18T23:51:58.213412+00:00",
+          "actions": [
+            {
+              "id": "action_7b75c8443a",
+              "server": "architecture",
+              "tool": "architecture.search",
+              "status": "passed",
+              "title": "Architecture Analyst: inspect architecture",
+              "detail": "Architecture Analyst found 8 relevant architecture components.",
+              "duration_ms": 9,
+              "evidence": {
+                "protocol": "MCP JSON-RPC 2.0",
+                "gateway_receipt": {
+                  "transport": "ASGI",
+                  "endpoint": "/mcp/architecture",
+                  "protocol": "JSON-RPC 2.0",
+                  "handshake": [
+                    "initialize",
+                    "tools/list"
+                  ],
+                  "call": "tools/call",
+                  "advertised_tool": "architecture.search"
+                },
+                "matches": 8
+              }
+            }
+          ],
+          "changes": [],
+          "evaluation": null,
+          "provider": "openai:gpt-5.6-terra"
+        }
+      ]
+    },
+    {
+      "id": "mgrchat_1597e73822",
+      "agent_id": "finance-agent",
+      "title": "Should we redesign how this agent uses its current tool?",
+      "autonomy": "review",
+      "created_at": "2026-07-18T23:43:43.415815+00:00",
+      "updated_at": "2026-07-18T23:43:52.880035+00:00",
+      "messages": [
+        {
+          "id": "mgrmsg_2799a70c90",
+          "role": "user",
+          "content": "Should we redesign how this agent uses its current tool?",
+          "created_at": "2026-07-18T23:43:43.415865+00:00",
+          "actions": [],
+          "changes": [],
+          "evaluation": null,
+          "provider": "local:deterministic"
+        },
+        {
+          "id": "mgrmsg_bced14c57e",
+          "role": "manager",
+          "content": "Yes\u2014but this is a **small API/tool-contract redesign**, not a rebuild.\n\n### What is working\n- `finance.analyze_company` is the appropriate default: it loads data, calculates metrics, runs valuation and risk, verifies grounding, and returns a complete report with trace/evidence.\n- The focused tools\u2014`calculate_metrics`, `run_valuation`, and `assess_risk`\u2014are useful for targeted or composable requests.\n- `finance.query_invoices` is correctly separate: it accesses live Supabase data through tightly bounded, read-only filters.\n\n### Primary issue: redundant public tools\n`finance.generate_report` currently calls the exact same `FinanceAnalyst().analyze(...)` path as `finance.analyze_company`. It has the same inputs and returns the same full result. That creates two names for one operation, which makes tool selection less predictable without adding capability.\n\n### Recommended design\n1. **Keep `finance.analyze_company` as the canonical end-to-end tool.**\n2. **Deprecate or remove `finance.generate_report`**\u2014or redefine it to accept already-computed metrics, valuation, and risk inputs if report-only rendering is genuinely needed.\n3. **Retain the three specialized analysis tools** for explicit metric-, valuation-, or risk-only questions.\n4. **Keep `finance.query_invoices` separate and constrained** as it is.\n5. Tighten the common analysis schema:\n   - `question` is currently accepted but not used by the calculation or reporting flow, so either make it affect report focus or remove it.\n   - Require at least one source selector (`ticker` or `dataset_path`) rather than silently defaulting to demo Apple data when neither is supplied.\n\nThis preserves the current architecture and gives callers a clear decision rule: use `analyze_company` for complete analysis, a specialized tool for a specific calculation, and `query_invoices` for live receivables data. No change has been applied.\n\nDelegation trace:\n1) Architecture Analyst: inspect architecture\n2) Workspace Inspector: inspect client workspace",
+          "created_at": "2026-07-18T23:43:52.880016+00:00",
+          "actions": [
+            {
+              "id": "action_baccc40a9b",
+              "server": "architecture",
+              "tool": "architecture.search",
+              "status": "passed",
+              "title": "Architecture Analyst: inspect architecture",
+              "detail": "Architecture Analyst found 7 relevant architecture components.",
+              "duration_ms": 4,
+              "evidence": {
+                "protocol": "MCP JSON-RPC 2.0",
+                "gateway_receipt": {
+                  "transport": "ASGI",
+                  "endpoint": "/mcp/architecture",
+                  "protocol": "JSON-RPC 2.0",
+                  "handshake": [
+                    "initialize",
+                    "tools/list"
+                  ],
+                  "call": "tools/call",
+                  "advertised_tool": "architecture.search"
+                },
+                "matches": 7
+              }
+            },
+            {
+              "id": "action_bd1dab9c85",
+              "server": "workspace",
+              "tool": "workspace.inspect",
+              "status": "passed",
+              "title": "Workspace Inspector: inspect client workspace",
+              "detail": "Workspace Inspector inspected 3 manager files and 12 relevant connected-workspace files for finance-agent.",
+              "duration_ms": 1089,
+              "evidence": {
+                "access": "auto_write_available",
+                "workspace": {
+                  "id": "workspace_47f60b44f4",
+                  "name": "Finance Agent",
+                  "root_path": "/Users/akashsenthilkumar/Documents/Coding/AgentManager/managed_agents/finance_agent",
+                  "agent_id": "finance-agent",
+                  "writable": true,
+                  "created_at": "2026-07-18T22:48:25.382971+00:00",
+                  "updated_at": "2026-07-18T22:48:25.382973+00:00",
+                  "root_name": "finance_agent",
+                  "files": 33,
+                  "directories": 6,
+                  "read_only": false
+                },
+                "context_files": [
+                  "agent.py",
+                  "README.md",
+                  "data_loader.py",
+                  "tools.py",
+                  "supabase_data.py",
+                  "app.py",
+                  "mcp_server.py",
+                  "models.py",
+                  "__init__.py",
+                  "analysis_engine.py",
+                  "valuation.py",
+                  "risk.py"
+                ],
+                "secret_paths_excluded": true,
+                "protocol": "MCP JSON-RPC 2.0",
+                "gateway_receipt": {
+                  "transport": "ASGI",
+                  "endpoint": "/mcp/workspace",
+                  "protocol": "JSON-RPC 2.0",
+                  "handshake": [
+                    "initialize",
+                    "tools/list"
+                  ],
+                  "call": "tools/call",
+                  "advertised_tool": "workspace.inspect"
+                }
+              }
+            }
+          ],
+          "changes": [],
+          "evaluation": null,
+          "provider": "openai:gpt-5.6-terra"
+        }
+      ]
+    },
+    {
+      "id": "mgrchat_56565aae04",
+      "agent_id": "finance-agent",
+      "title": "Why is my agent degraded",
+      "autonomy": "review",
+      "created_at": "2026-07-18T23:42:06.537434+00:00",
+      "updated_at": "2026-07-18T23:42:49.263335+00:00",
+      "messages": [
+        {
+          "id": "mgrmsg_66022fdef7",
+          "role": "user",
+          "content": "Why is my agent degraded",
+          "created_at": "2026-07-18T23:42:06.537495+00:00",
+          "actions": [],
+          "changes": [],
+          "evaluation": null,
+          "provider": "local:deterministic"
+        },
+        {
+          "id": "mgrmsg_020d86a9fd",
+          "role": "manager",
+          "content": "Your Finance Agent is degraded because its managed process is currently **stopped**.\n\n- Expected endpoint: `http://127.0.0.1:8080/mcp`\n- Saved entry command: `python app.py`\n- Process status: `stopped` (no PID, no exit log available)\n- The agent configuration and all six finance tools are present and enabled, but they will not be callable until the process is running.\n\nStart the agent to restore its MCP service. Runtime evidence was recorded without changing the agent's files or instructions.\n\nDelegation trace:\n1) Runtime Operator: inspect agent runtime\n2) Validation Specialist: evaluate requested outcome",
+          "created_at": "2026-07-18T23:42:10.083412+00:00",
+          "actions": [
+            {
+              "id": "action_de49416247",
+              "server": "runtime",
+              "tool": "runtime.status",
+              "status": "passed",
+              "title": "Runtime Operator: inspect agent runtime",
+              "detail": "Runtime MCP inspected Finance Agent: process stopped, endpoint http://127.0.0.1:8080/mcp, and 33 accessible source files.",
+              "duration_ms": 594,
+              "evidence": {
+                "protocol": "MCP JSON-RPC 2.0",
+                "server": "runtime",
+                "tool": "runtime.status",
+                "gateway_receipt": {
+                  "transport": "ASGI",
+                  "endpoint": "/mcp/runtime",
+                  "protocol": "JSON-RPC 2.0",
+                  "handshake": [
+                    "initialize",
+                    "tools/list"
+                  ],
+                  "call": "tools/call",
+                  "advertised_tool": "runtime.status"
+                },
+                "process": {
+                  "status": "stopped",
+                  "pid": null,
+                  "command": null,
+                  "started_at": null,
+                  "exit_code": null
+                },
+                "workspace": {
+                  "root_name": "finance_agent",
+                  "root_path": "/Users/akashsenthilkumar/Documents/Coding/AgentManager/managed_agents/finance_agent",
+                  "files": 33,
+                  "directories": 6,
+                  "read_only": true
+                }
+              }
+            },
+            {
+              "id": "action_ee12752fd7",
+              "server": "validation",
+              "tool": "validation.evaluate",
+              "status": "passed",
+              "title": "Validation Specialist: evaluate requested outcome",
+              "detail": "Validation Specialist: The Manager reached the selected agent through the Runtime MCP and recorded real process, discovery, or tool-call evidence.",
+              "duration_ms": 4,
+              "evidence": {
+                "protocol": "MCP JSON-RPC 2.0",
+                "gateway_receipt": {
+                  "transport": "ASGI",
+                  "endpoint": "/mcp/validation",
+                  "protocol": "JSON-RPC 2.0",
+                  "handshake": [
+                    "initialize",
+                    "tools/list"
+                  ],
+                  "call": "tools/call",
+                  "advertised_tool": "validation.evaluate"
+                }
+              }
+            }
+          ],
+          "changes": [],
+          "evaluation": {
+            "status": "passed",
+            "summary": "The Manager reached the selected agent through the Runtime MCP and recorded real process, discovery, or tool-call evidence.",
+            "checks": [
+              "Scoped workspace access confirmed",
+              "Runtime operation used the Agent Runtime MCP",
+              "Process and endpoint state captured",
+              "Live tool provenance retained when a tool was called"
+            ]
+          },
+          "provider": "openai:gpt-5.6-terra"
+        },
+        {
+          "id": "mgrmsg_0c03e8d3f7",
+          "role": "user",
+          "content": "Can you start the process",
+          "created_at": "2026-07-18T23:42:46.189036+00:00",
+          "actions": [],
+          "changes": [],
+          "evaluation": null,
+          "provider": "local:deterministic"
+        },
+        {
+          "id": "mgrmsg_fcb17370cd",
+          "role": "manager",
+          "content": "I can\u2019t start the Finance Agent because process control requires Auto permission, which isn\u2019t currently enabled. Enable Auto permission and retry; I\u2019ll then launch its saved command (`python app.py`) and confirm the MCP endpoint is live. Runtime evidence was recorded without changing the agent's files or instructions.\n\nDelegation trace:\n2) Validation Specialist: evaluate requested outcome",
+          "created_at": "2026-07-18T23:42:49.263327+00:00",
+          "actions": [
+            {
+              "id": "action_b603acd923",
+              "server": "runtime",
+              "tool": "runtime.start",
+              "status": "failed",
+              "title": "Runtime Operator: launch independent agent",
+              "detail": "Starting, stopping, or calling a managed agent requires Auto permission",
+              "duration_ms": 1,
+              "evidence": {}
+            },
+            {
+              "id": "action_672694a0dc",
+              "server": "validation",
+              "tool": "validation.evaluate",
+              "status": "passed",
+              "title": "Validation Specialist: evaluate requested outcome",
+              "detail": "Validation Specialist: One or more requested runtime operations failed; review the action evidence before relying on the agent.",
+              "duration_ms": 2,
+              "evidence": {
+                "protocol": "MCP JSON-RPC 2.0",
+                "gateway_receipt": {
+                  "transport": "ASGI",
+                  "endpoint": "/mcp/validation",
+                  "protocol": "JSON-RPC 2.0",
+                  "handshake": [],
+                  "call": "tools/call",
+                  "advertised_tool": "validation.evaluate"
+                }
+              }
+            }
+          ],
+          "changes": [],
+          "evaluation": {
+            "status": "needs_review",
+            "summary": "One or more requested runtime operations failed; review the action evidence before relying on the agent.",
+            "checks": [
+              "Scoped workspace access confirmed",
+              "Runtime operation used the Agent Runtime MCP",
+              "Process and endpoint state captured",
+              "Live tool provenance retained when a tool was called"
+            ]
+          },
+          "provider": "openai:gpt-5.6-terra"
+        }
+      ]
+    },
+    {
+      "id": "mgrchat_63b50b5fc2",
+      "agent_id": "finance-agent",
+      "title": "Hey hello can you help me develop this agent?",
+      "autonomy": "review",
+      "created_at": "2026-07-18T23:34:16.688128+00:00",
+      "updated_at": "2026-07-18T23:34:19.044237+00:00",
+      "messages": [
+        {
+          "id": "mgrmsg_9ad0bf0a1b",
+          "role": "user",
+          "content": "Hey hello can you help me develop this agent?",
+          "created_at": "2026-07-18T23:34:16.688235+00:00",
+          "actions": [],
+          "changes": [],
+          "evaluation": null,
+          "provider": "local:deterministic"
+        },
+        {
+          "id": "mgrmsg_56a3ff9043",
+          "role": "manager",
+          "content": "Hello! I can help develop the Finance Agent.\n\nIt already supports financial analysis, metrics, valuations, risk scoring, report generation, and bounded read-only invoice queries. Tell me what you\u2019d like to add or improve\u2014for example, a new analysis workflow, stricter invoice filtering, new valuation assumptions, report formatting, or additional data-source behavior\u2014and I\u2019ll inspect the relevant workspace and propose a minimal, validated change.",
+          "created_at": "2026-07-18T23:34:19.044215+00:00",
+          "actions": [],
+          "changes": [],
+          "evaluation": null,
+          "provider": "openai:gpt-5.6-terra"
+        }
+      ]
+    },
+    {
       "id": "mgrchat_76737669e9",
       "agent_id": "finance-agent",
-      "title": "Inspect the Finance Agent runtime status, discover its availab…",
+      "title": "Inspect the Finance Agent runtime status, discover its availab\u2026",
       "autonomy": "auto",
       "created_at": "2026-07-18T22:49:22.443740+00:00",
       "updated_at": "2026-07-18T22:49:31.873130+00:00",
@@ -1071,7 +1771,7 @@
       "updated_at": "2026-07-18T22:48:25.382973+00:00"
     }
   ],
-  "updated_at": "2026-07-18T22:57:25.596078+00:00",
+  "updated_at": "2026-07-18T23:57:55.543128+00:00",
   "findings": [
     {
       "id": "finding_f98a75274d",
@@ -1134,9 +1834,9 @@
         "endpoint": "http://127.0.0.1:8080/mcp"
       },
       "detected_at": "2026-07-18T22:48:40.972244+00:00",
-      "last_seen_at": "2026-07-18T22:57:25.558228+00:00",
+      "last_seen_at": "2026-07-18T23:57:55.508466+00:00",
       "resolved_at": null,
-      "occurrences": 7,
+      "occurrences": 124,
       "trigger": {
         "agent": "ArchitectureAgent",
         "action": "architecture.search",
@@ -1239,7 +1939,7 @@
     }
   ],
   "reconciliation": {
-    "last_checked_at": "2026-07-18T22:57:25.558228+00:00",
+    "last_checked_at": "2026-07-18T23:57:55.508466+00:00",
     "last_error": null,
     "agents": {
       "order-support-agent": {
@@ -1338,5 +2038,481 @@
       "findings_observed": 1,
       "token_usage": 0
     }
-  }
+  },
+  "benchmarks": [
+    {
+      "id": "benchmark_728314e1cc",
+      "agent_id": "finance-agent",
+      "agent_name": "Finance Agent",
+      "status": "completed",
+      "created_at": "2026-07-18T23:36:34.157636+00:00",
+      "baseline_label": "Without Agentic Manager",
+      "managed_label": "With Agentic Manager",
+      "summary": "The managed configuration scored 20 points higher on the same executable capability scenarios.",
+      "metrics": [
+        {
+          "id": "overall_score",
+          "label": "Overall score",
+          "unit": "percent",
+          "higher_is_better": true,
+          "baseline": 0.0,
+          "managed": 20.0
+        },
+        {
+          "id": "task_success",
+          "label": "Task success",
+          "unit": "percent",
+          "higher_is_better": true,
+          "baseline": 0.0,
+          "managed": 0.0
+        },
+        {
+          "id": "tool_coverage",
+          "label": "Tool coverage",
+          "unit": "percent",
+          "higher_is_better": true,
+          "baseline": 0.0,
+          "managed": 100.0
+        },
+        {
+          "id": "grounding_rate",
+          "label": "Grounded output",
+          "unit": "percent",
+          "higher_is_better": true,
+          "baseline": 0.0,
+          "managed": 0.0
+        },
+        {
+          "id": "verification_rate",
+          "label": "Verification readiness",
+          "unit": "percent",
+          "higher_is_better": true,
+          "baseline": 0.0,
+          "managed": 0.0
+        },
+        {
+          "id": "average_latency",
+          "label": "Average tool latency",
+          "unit": "milliseconds",
+          "higher_is_better": false,
+          "baseline": 0.0,
+          "managed": 12.3
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "scenario_1",
+          "title": "Run the autonomous end-to-end financial analysis pipeline.",
+          "objective": "Execute finance.analyze_company with representative input and return grounded structured output.",
+          "required_tool": "finance.analyze_company",
+          "probe_input": {
+            "company_name": "benchmark-company_name",
+            "ticker": "benchmark-ticker",
+            "dataset_path": "benchmark-dataset_path",
+            "question": "benchmark-question"
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.analyze_company",
+            "provider": "agent_mcp",
+            "latency_ms": 13,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        },
+        {
+          "id": "scenario_2",
+          "title": "Produce a 0-100 evidence-led financial risk assessment.",
+          "objective": "Execute finance.assess_risk with representative input and return grounded structured output.",
+          "required_tool": "finance.assess_risk",
+          "probe_input": {
+            "company_name": "benchmark-company_name",
+            "ticker": "benchmark-ticker",
+            "dataset_path": "benchmark-dataset_path",
+            "question": "benchmark-question"
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.assess_risk",
+            "provider": "agent_mcp",
+            "latency_ms": 12,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        },
+        {
+          "id": "scenario_3",
+          "title": "Calculate growth, profitability, liquidity, leverage, cash-flow, and efficiency metrics.",
+          "objective": "Execute finance.calculate_metrics with representative input and return grounded structured output.",
+          "required_tool": "finance.calculate_metrics",
+          "probe_input": {
+            "company_name": "benchmark-company_name",
+            "ticker": "benchmark-ticker",
+            "dataset_path": "benchmark-dataset_path",
+            "question": "benchmark-question"
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.calculate_metrics",
+            "provider": "agent_mcp",
+            "latency_ms": 12,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        },
+        {
+          "id": "scenario_4",
+          "title": "Generate a validated analysis report.",
+          "objective": "Execute finance.generate_report with representative input and return grounded structured output.",
+          "required_tool": "finance.generate_report",
+          "probe_input": {
+            "company_name": "benchmark-company_name",
+            "ticker": "benchmark-ticker",
+            "dataset_path": "benchmark-dataset_path",
+            "question": "benchmark-question"
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.generate_report",
+            "provider": "agent_mcp",
+            "latency_ms": 12,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        },
+        {
+          "id": "scenario_5",
+          "title": "Pull live invoice rows from the configured Supabase database using bounded read-only filters.",
+          "objective": "Execute finance.query_invoices with representative input and return grounded structured output.",
+          "required_tool": "finance.query_invoices",
+          "probe_input": {
+            "status": "benchmark-status",
+            "invoice_id": "benchmark-invoice_id",
+            "limit": 25
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.query_invoices",
+            "provider": "agent_mcp",
+            "latency_ms": 14,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        },
+        {
+          "id": "scenario_6",
+          "title": "Run DCF scenarios and comparable valuation multiples.",
+          "objective": "Execute finance.run_valuation with representative input and return grounded structured output.",
+          "required_tool": "finance.run_valuation",
+          "probe_input": {
+            "company_name": "benchmark-company_name",
+            "ticker": "benchmark-ticker",
+            "dataset_path": "benchmark-dataset_path",
+            "question": "benchmark-question"
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.run_valuation",
+            "provider": "agent_mcp",
+            "latency_ms": 11,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        }
+      ],
+      "evidence": [
+        "Compared 6 identical tool scenarios.",
+        "Manager-runtime tools executed their registered source; agent-MCP tools called their configured HTTP endpoint.",
+        "Scores use observed availability, execution success, structured grounding, and verification readiness.",
+        "No OpenAI call is used by the benchmark runner.",
+        "Agent Manager could not ready the live MCP boundary before the benchmark: Agent process exited before its MCP endpoint became ready"
+      ],
+      "error": null
+    },
+    {
+      "id": "benchmark_98d8eefcd6",
+      "agent_id": "finance-agent",
+      "agent_name": "Finance Agent",
+      "status": "completed",
+      "created_at": "2026-07-18T23:36:28.842626+00:00",
+      "baseline_label": "Without Agentic Manager",
+      "managed_label": "With Agentic Manager",
+      "summary": "The managed configuration scored 20 points higher on the same executable capability scenarios.",
+      "metrics": [
+        {
+          "id": "overall_score",
+          "label": "Overall score",
+          "unit": "percent",
+          "higher_is_better": true,
+          "baseline": 0.0,
+          "managed": 20.0
+        },
+        {
+          "id": "task_success",
+          "label": "Task success",
+          "unit": "percent",
+          "higher_is_better": true,
+          "baseline": 0.0,
+          "managed": 0.0
+        },
+        {
+          "id": "tool_coverage",
+          "label": "Tool coverage",
+          "unit": "percent",
+          "higher_is_better": true,
+          "baseline": 0.0,
+          "managed": 100.0
+        },
+        {
+          "id": "grounding_rate",
+          "label": "Grounded output",
+          "unit": "percent",
+          "higher_is_better": true,
+          "baseline": 0.0,
+          "managed": 0.0
+        },
+        {
+          "id": "verification_rate",
+          "label": "Verification readiness",
+          "unit": "percent",
+          "higher_is_better": true,
+          "baseline": 0.0,
+          "managed": 0.0
+        },
+        {
+          "id": "average_latency",
+          "label": "Average tool latency",
+          "unit": "milliseconds",
+          "higher_is_better": false,
+          "baseline": 0.0,
+          "managed": 11.5
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "scenario_1",
+          "title": "Run the autonomous end-to-end financial analysis pipeline.",
+          "objective": "Execute finance.analyze_company with representative input and return grounded structured output.",
+          "required_tool": "finance.analyze_company",
+          "probe_input": {
+            "company_name": "benchmark-company_name",
+            "ticker": "benchmark-ticker",
+            "dataset_path": "benchmark-dataset_path",
+            "question": "benchmark-question"
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.analyze_company",
+            "provider": "agent_mcp",
+            "latency_ms": 13,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        },
+        {
+          "id": "scenario_2",
+          "title": "Produce a 0-100 evidence-led financial risk assessment.",
+          "objective": "Execute finance.assess_risk with representative input and return grounded structured output.",
+          "required_tool": "finance.assess_risk",
+          "probe_input": {
+            "company_name": "benchmark-company_name",
+            "ticker": "benchmark-ticker",
+            "dataset_path": "benchmark-dataset_path",
+            "question": "benchmark-question"
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.assess_risk",
+            "provider": "agent_mcp",
+            "latency_ms": 14,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        },
+        {
+          "id": "scenario_3",
+          "title": "Calculate growth, profitability, liquidity, leverage, cash-flow, and efficiency metrics.",
+          "objective": "Execute finance.calculate_metrics with representative input and return grounded structured output.",
+          "required_tool": "finance.calculate_metrics",
+          "probe_input": {
+            "company_name": "benchmark-company_name",
+            "ticker": "benchmark-ticker",
+            "dataset_path": "benchmark-dataset_path",
+            "question": "benchmark-question"
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.calculate_metrics",
+            "provider": "agent_mcp",
+            "latency_ms": 11,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        },
+        {
+          "id": "scenario_4",
+          "title": "Generate a validated analysis report.",
+          "objective": "Execute finance.generate_report with representative input and return grounded structured output.",
+          "required_tool": "finance.generate_report",
+          "probe_input": {
+            "company_name": "benchmark-company_name",
+            "ticker": "benchmark-ticker",
+            "dataset_path": "benchmark-dataset_path",
+            "question": "benchmark-question"
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.generate_report",
+            "provider": "agent_mcp",
+            "latency_ms": 11,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        },
+        {
+          "id": "scenario_5",
+          "title": "Pull live invoice rows from the configured Supabase database using bounded read-only filters.",
+          "objective": "Execute finance.query_invoices with representative input and return grounded structured output.",
+          "required_tool": "finance.query_invoices",
+          "probe_input": {
+            "status": "benchmark-status",
+            "invoice_id": "benchmark-invoice_id",
+            "limit": 25
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.query_invoices",
+            "provider": "agent_mcp",
+            "latency_ms": 10,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        },
+        {
+          "id": "scenario_6",
+          "title": "Run DCF scenarios and comparable valuation multiples.",
+          "objective": "Execute finance.run_valuation with representative input and return grounded structured output.",
+          "required_tool": "finance.run_valuation",
+          "probe_input": {
+            "company_name": "benchmark-company_name",
+            "ticker": "benchmark-ticker",
+            "dataset_path": "benchmark-dataset_path",
+            "question": "benchmark-question"
+          },
+          "baseline": {
+            "status": "unavailable",
+            "tool_name": "not_configured",
+            "provider": null,
+            "latency_ms": 0,
+            "output_keys": [],
+            "error": "Capability is not available in this configuration."
+          },
+          "managed": {
+            "status": "failed",
+            "tool_name": "finance.run_valuation",
+            "provider": "agent_mcp",
+            "latency_ms": 10,
+            "output_keys": [],
+            "error": "All connection attempts failed"
+          }
+        }
+      ],
+      "evidence": [
+        "Compared 6 identical tool scenarios.",
+        "Manager-runtime tools executed their registered source; agent-MCP tools called their configured HTTP endpoint.",
+        "Scores use observed availability, execution success, structured grounding, and verification readiness.",
+        "No OpenAI call is used by the benchmark runner.",
+        "Agent Manager could not ready the live MCP boundary before the benchmark: Agent process exited before its MCP endpoint became ready"
+      ],
+      "error": null
+    }
+  ]
 }

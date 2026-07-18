@@ -1,4 +1,115 @@
+import AppKit
 import SwiftUI
+
+private struct AgentThinkingView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let initial: String
+    let title: String
+    let stages: [String]
+    let detail: String
+
+    @State private var stage = 0
+    @State private var animating = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(AppTheme.accent.opacity(0.5), lineWidth: 1.5)
+                    .frame(width: 36, height: 36)
+                    .scaleEffect(animating && !reduceMotion ? 1.42 : 0.92)
+                    .opacity(animating && !reduceMotion ? 0 : 0.55)
+                    .animation(
+                        .easeOut(duration: 1.45)
+                            .repeatForever(autoreverses: false),
+                        value: animating
+                    )
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(AppTheme.accent.opacity(0.14))
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        Text(initial)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(AppTheme.accent)
+                    )
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        ForEach(0..<3, id: \.self) { index in
+                            Circle()
+                                .fill(AppTheme.accent)
+                                .frame(width: 5, height: 5)
+                                .offset(
+                                    y: animating && !reduceMotion
+                                    ? -3
+                                    : 2
+                                )
+                                .opacity(
+                                    animating && !reduceMotion
+                                    ? 0.35
+                                    : 1
+                                )
+                                .animation(
+                                    .easeInOut(duration: 0.58)
+                                        .repeatForever(autoreverses: true)
+                                        .delay(Double(index) * 0.13),
+                                    value: animating
+                                )
+                        }
+                    }
+
+                    Text(stages[stage])
+                        .id(stage)
+                        .font(.callout.weight(.medium))
+                        .contentTransition(.opacity)
+                        .transition(
+                            .opacity.combined(
+                                with: .move(edge: .bottom)
+                            )
+                        )
+                }
+
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: 680, alignment: .leading)
+        .background(AppTheme.surface.opacity(0.8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(AppTheme.border)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title) is working. \(stages[stage])")
+        .onAppear {
+            animating = true
+        }
+        .task {
+            guard !reduceMotion, stages.count > 1 else { return }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(1.65))
+                } catch {
+                    return
+                }
+                withAnimation(.easeInOut(duration: 0.28)) {
+                    stage = (stage + 1) % stages.count
+                }
+            }
+        }
+    }
+}
 
 struct WorkspaceView: View {
     @EnvironmentObject private var store: AppStore
@@ -196,6 +307,7 @@ struct ManagerWorkspaceView: View {
     @State private var applying = false
     @State private var historyPanel = false
     @State private var livePanel = false
+    @FocusState private var composerFocused: Bool
 
     private let starters = [
         "Review this agent's architecture and suggest the most important improvement.",
@@ -223,7 +335,15 @@ struct ManagerWorkspaceView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: historyPanel)
         .animation(.easeInOut(duration: 0.2), value: livePanel)
-        .task { await load() }
+        .task {
+            await load()
+            composerFocused = true
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSWindow.didBecomeKeyNotification
+        )) { _ in
+            composerFocused = true
+        }
     }
 
     private var historyRail: some View {
@@ -334,15 +454,14 @@ struct ManagerWorkspaceView: View {
                             )
                         }
                         if working {
-                            HStack(spacing: 10) {
-                                ProgressView().controlSize(.small)
-                                Text("Manager is selecting tools and inspecting the agent…")
-                                    .foregroundStyle(AppTheme.secondaryText)
-                            }
-                            .padding()
+                            managerThinking
                         }
                     }
                     .padding(22)
+                } else if working {
+                    managerThinking
+                        .padding(22)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     managerWelcome
                 }
@@ -352,6 +471,20 @@ struct ManagerWorkspaceView: View {
             composer
         }
         .background(AppTheme.background)
+    }
+
+    private var managerThinking: some View {
+        AgentThinkingView(
+            initial: "M",
+            title: "Manager Agent",
+            stages: [
+                "Understanding your request",
+                "Inspecting fleet and agent context",
+                "Selecting MCP specialist tools",
+                "Validating the result"
+            ],
+            detail: "Coordinating live work for \(agent.name)."
+        )
     }
 
     private var managerWelcome: some View {
@@ -399,20 +532,17 @@ struct ManagerWorkspaceView: View {
 
     private var composer: some View {
         VStack(spacing: 8) {
-            ZStack(alignment: .topLeading) {
-                if prompt.isEmpty {
-                    Text("Ask the Manager to inspect, change, or run this agent…")
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 8)
-                        .allowsHitTesting(false)
-                }
-                TextEditor(text: $prompt)
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 58, maxHeight: 108)
-                    .padding(.horizontal, 1)
-            }
+            TextField(
+                "Ask the Manager to inspect, change, or run this agent…",
+                text: $prompt,
+                axis: .vertical
+            )
+            .textFieldStyle(.plain)
+            .lineLimit(1...3)
+            .focused($composerFocused)
+            .padding(.horizontal, 3)
+            .padding(.vertical, 5)
+            .frame(minHeight: 30, maxHeight: 72)
 
             HStack(spacing: 9) {
                 Menu {
@@ -439,12 +569,7 @@ struct ManagerWorkspaceView: View {
                 }
                 .menuStyle(.borderlessButton)
 
-                Label(
-                    agent.openaiModel ?? store.overview?.openai.model ?? "App default",
-                    systemImage: "sparkles"
-                )
-                .font(.caption.monospaced())
-                .foregroundStyle(AppTheme.secondaryText)
+                WorkspaceModelMenu(agent: agent)
 
                 Text(
                     autonomy == "auto"
@@ -486,11 +611,16 @@ struct ManagerWorkspaceView: View {
                 .help("Send to Manager")
             }
         }
-        .padding(14)
-        .frame(maxWidth: 900)
-        .liquidGlass(cornerRadius: 22, interactive: true)
+        .padding(10)
+        .frame(maxWidth: 860)
+        .background(AppTheme.raised)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(AppTheme.border)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.horizontal, 22)
-        .padding(.vertical, 14)
+        .padding(.vertical, 10)
     }
 
     private var liveWork: some View {
@@ -636,6 +766,155 @@ struct ManagerWorkspaceView: View {
             }
             applying = false
         }
+    }
+}
+
+struct WorkspaceModelMenu: View {
+    @EnvironmentObject private var store: AppStore
+    let agent: AgentRecord
+
+    @State private var saving = false
+
+    private var provider: OpenAIStatus? { store.overview?.openai }
+    private var models: [OpenAIModelOption] {
+        provider?.modelOptions ?? []
+    }
+    private var effectiveModel: String {
+        agent.openaiModel ?? provider?.model ?? "App default"
+    }
+    private var effectiveReasoning: String {
+        agent.openaiReasoningEffort
+            ?? provider?.reasoningEffort
+            ?? "default"
+    }
+    private var reasoningOptions: [String] {
+        let selected = agent.openaiModel ?? provider?.model
+        return models.first(where: { $0.id == selected })?.reasoningEfforts
+            ?? ["none", "low", "medium", "high", "xhigh", "max"]
+    }
+
+    var body: some View {
+        Menu {
+            Section("Model") {
+                Button {
+                    Task {
+                        await save(
+                            model: nil,
+                            reasoning: agent.openaiReasoningEffort
+                        )
+                    }
+                } label: {
+                    menuLabel(
+                        "App default (\(provider?.model ?? "configured model"))",
+                        selected: agent.openaiModel == nil
+                    )
+                }
+                ForEach(models) { option in
+                    Button {
+                        Task {
+                            await save(
+                                model: option.id,
+                                reasoning: agent.openaiReasoningEffort
+                            )
+                        }
+                    } label: {
+                        menuLabel(
+                            "\(option.label) · \(option.role)",
+                            selected: agent.openaiModel == option.id
+                        )
+                    }
+                }
+            }
+
+            Section("Reasoning effort") {
+                Button {
+                    Task {
+                        await save(
+                            model: agent.openaiModel,
+                            reasoning: nil
+                        )
+                    }
+                } label: {
+                    menuLabel(
+                        "App default (\(provider?.reasoningEffort ?? "configured effort"))",
+                        selected: agent.openaiReasoningEffort == nil
+                    )
+                }
+                ForEach(reasoningOptions, id: \.self) { effort in
+                    Button {
+                        Task {
+                            await save(
+                                model: agent.openaiModel,
+                                reasoning: effort
+                            )
+                        }
+                    } label: {
+                        menuLabel(
+                            effort.capitalized,
+                            selected: agent.openaiReasoningEffort == effort
+                        )
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if saving {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "sparkles")
+                }
+                Text("\(effectiveModel) · \(effectiveReasoning)")
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .font(.caption.monospaced())
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Color.white.opacity(0.07))
+            .clipShape(Capsule())
+        }
+        .menuStyle(.borderlessButton)
+        .disabled(saving || models.isEmpty)
+        .help("Change this agent's model or reasoning effort")
+    }
+
+    private func menuLabel(_ title: String, selected: Bool) -> some View {
+        HStack {
+            Text(title)
+            if selected { Image(systemName: "checkmark") }
+        }
+    }
+
+    private func save(model: String?, reasoning: String?) async {
+        guard let api = store.api else { return }
+        saving = true
+        do {
+            let request = AgentUpdateRequest(
+                name: agent.name,
+                description: agent.description,
+                owner: agent.owner,
+                mcpEndpoint: agent.mcpEndpoint,
+                instructions: agent.instructions,
+                features: agent.features,
+                responseStyle: agent.responseStyle,
+                toolPolicy: agent.toolPolicy,
+                enabledTools: agent.enabledTools,
+                verificationMode: agent.verificationMode,
+                memoryEnabled: agent.memoryEnabled,
+                openaiModel: model,
+                openaiReasoningEffort: reasoning
+            )
+            let _: AgentRecord = try await api.patch(
+                "/api/managed-agents/\(agent.id)",
+                body: request
+            )
+            try await store.refresh()
+            store.show("Model settings updated for \(agent.name).")
+        } catch {
+            store.show(error.localizedDescription, error: true)
+        }
+        saving = false
     }
 }
 
@@ -802,6 +1081,7 @@ struct TestWorkspaceView: View {
     @State private var sending = false
     @State private var historyPanel = false
     @State private var contextPanelVisible = false
+    @FocusState private var composerFocused: Bool
 
     private var starters: [String] {
         if let requestedTool {
@@ -837,7 +1117,15 @@ struct TestWorkspaceView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: historyPanel)
         .animation(.easeInOut(duration: 0.2), value: contextPanelVisible)
-        .task { await load() }
+        .task {
+            await load()
+            composerFocused = true
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSWindow.didBecomeKeyNotification
+        )) { _ in
+            composerFocused = true
+        }
     }
 
     private var conversationRail: some View {
@@ -930,14 +1218,14 @@ struct TestWorkspaceView: View {
                             ChatMessageView(message: item)
                         }
                         if sending {
-                            HStack(spacing: 10) {
-                                ProgressView().controlSize(.small)
-                                Text("Client agent is working…")
-                                    .foregroundStyle(AppTheme.secondaryText)
-                            }
+                            clientThinking
                         }
                     }
                     .padding(22)
+                } else if sending {
+                    clientThinking
+                        .padding(22)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     VStack(spacing: 15) {
                         Image(systemName: "play.square.stack")
@@ -973,18 +1261,17 @@ struct TestWorkspaceView: View {
             .defaultScrollAnchor(.bottom)
 
             VStack(spacing: 8) {
-                ZStack(alignment: .topLeading) {
-                    if message.isEmpty {
-                        Text("Message \(agent.name)…")
-                            .foregroundStyle(AppTheme.secondaryText)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 8)
-                            .allowsHitTesting(false)
-                    }
-                    TextEditor(text: $message)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 58, maxHeight: 104)
-                }
+                TextField(
+                    "Message \(agent.name)…",
+                    text: $message,
+                    axis: .vertical
+                )
+                .textFieldStyle(.plain)
+                .lineLimit(1...3)
+                .focused($composerFocused)
+                .padding(.horizontal, 3)
+                .padding(.vertical, 5)
+                .frame(minHeight: 30, maxHeight: 72)
                 HStack(spacing: 9) {
                     Menu {
                         Button {
@@ -1010,12 +1297,7 @@ struct TestWorkspaceView: View {
                     }
                     .menuStyle(.borderlessButton)
 
-                    Label(
-                        agent.openaiModel ?? store.overview?.openai.model ?? "App default",
-                        systemImage: "sparkles"
-                    )
-                    .font(.caption.monospaced())
-                    .foregroundStyle(AppTheme.secondaryText)
+                    WorkspaceModelMenu(agent: agent)
 
                     Text(contextMode == "full" ? "All agent context included" : "Only relevant context included")
                         .font(.caption)
@@ -1051,12 +1333,46 @@ struct TestWorkspaceView: View {
                     .help("Run client test")
                 }
             }
-            .padding(14)
-            .frame(maxWidth: 900)
-            .liquidGlass(cornerRadius: 22, interactive: true)
+            .padding(10)
+            .frame(maxWidth: 860)
+            .background(AppTheme.raised)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(AppTheme.border)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .padding(.horizontal, 22)
-            .padding(.vertical, 14)
+            .padding(.vertical, 10)
         }
+    }
+
+    private var clientThinking: some View {
+        AgentThinkingView(
+            initial: "A",
+            title: "\(agent.name) is working",
+            stages: (
+                agent.imported
+                    && agent.mcpEndpoint?.hasPrefix("http") == true
+            )
+            ? [
+                "Starting the managed runtime",
+                "Discovering live MCP tools",
+                "Calling the grounded tool",
+                "Checking the returned evidence"
+            ]
+            : [
+                "Reading agent context",
+                "Selecting an available tool",
+                "Running the request",
+                "Checking the answer"
+            ],
+            detail: (
+                agent.imported
+                    && agent.mcpEndpoint?.hasPrefix("http") == true
+            )
+            ? "First startup can take a moment while MCP becomes ready."
+            : "The test stays active while the agent produces and verifies its response."
+        )
     }
 
     private var contextPanel: some View {
@@ -1079,7 +1395,13 @@ struct TestWorkspaceView: View {
                 }
                 Divider()
                 contextBlock("EXECUTION PATH") {
-                    Text(agent.mcpEndpoint?.hasPrefix("http") == true ? "External MCP" : "Local demo")
+                    Text(
+                        agent.imported && agent.mcpEndpoint?.hasPrefix("http") == true
+                        ? "Managed local MCP · starts on demand"
+                        : agent.mcpEndpoint?.hasPrefix("http") == true
+                        ? "Remote MCP"
+                        : "Local demo"
+                    )
                         .font(.callout.weight(.semibold))
                     Text(agent.mcpEndpoint ?? "No endpoint configured")
                         .font(.caption.monospaced())
@@ -1246,8 +1568,16 @@ struct ChatMessageView: View {
                             .padding(.top, 10)
                         } label: {
                             HStack {
-                                Image(systemName: "checkmark.shield.fill")
-                                    .foregroundStyle(AppTheme.accent)
+                                Image(
+                                    systemName: verification.status == "failed"
+                                    ? "xmark.shield.fill"
+                                    : "checkmark.shield.fill"
+                                )
+                                .foregroundStyle(
+                                    verification.status == "failed"
+                                    ? AppTheme.danger
+                                    : AppTheme.accent
+                                )
                                 VStack(alignment: .leading) {
                                     Text("Output \(verification.status)")
                                         .font(.callout.weight(.semibold))
@@ -1269,14 +1599,34 @@ struct ChatMessageView: View {
         }
     }
 
+    private var liveFailedWithoutMock: Bool {
+        message.executionMode == "fallback"
+            && message.provider == "local:error"
+    }
+
     private var executionReceipt: some View {
-        HStack(spacing: 8) {
-            StatusDot(status: message.executionMode == "fallback" ? "degraded" : "healthy")
-            Text(message.executionMode == "live" ? "Live MCP" : message.executionMode == "fallback" ? "Fallback demo" : "Local demo")
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                StatusDot(
+                    status: liveFailedWithoutMock
+                    ? "failed"
+                    : (message.executionMode == "fallback" ? "degraded" : "healthy")
+                )
+                Text(
+                    message.executionMode == "live"
+                    ? "Live agent + MCP"
+                    : liveFailedWithoutMock
+                    ? "Live agent failed · no mock response"
+                    : message.executionMode == "fallback"
+                    ? "Live unavailable · fallback used"
+                    : "Local demo"
+                )
                 .font(.caption.weight(.semibold))
-            Text(message.provider)
-                .font(.caption.monospaced())
-                .foregroundStyle(AppTheme.secondaryText)
+                Spacer()
+                Text(message.provider)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
             if let endpoint = message.endpoint {
                 Text(endpoint)
                     .font(.caption2.monospaced())
@@ -1284,10 +1634,10 @@ struct ChatMessageView: View {
                     .lineLimit(1)
             }
             if let reason = message.fallbackReason {
-                Text(reason)
+                Label(reason, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(AppTheme.warning)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, 10)

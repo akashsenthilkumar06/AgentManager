@@ -470,6 +470,44 @@ struct AgentUpdateRequest: Encodable {
     let memoryEnabled: Bool
     let openaiModel: String?
     let openaiReasoningEffort: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, description, owner, mcpEndpoint, instructions, features
+        case responseStyle, toolPolicy, enabledTools, verificationMode
+        case memoryEnabled, openaiModel, openaiReasoningEffort
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encode(description, forKey: .description)
+        try container.encode(owner, forKey: .owner)
+        if let mcpEndpoint {
+            try container.encode(mcpEndpoint, forKey: .mcpEndpoint)
+        } else {
+            try container.encodeNil(forKey: .mcpEndpoint)
+        }
+        try container.encode(instructions, forKey: .instructions)
+        try container.encode(features, forKey: .features)
+        try container.encode(responseStyle, forKey: .responseStyle)
+        try container.encode(toolPolicy, forKey: .toolPolicy)
+        try container.encode(enabledTools, forKey: .enabledTools)
+        try container.encode(verificationMode, forKey: .verificationMode)
+        try container.encode(memoryEnabled, forKey: .memoryEnabled)
+        if let openaiModel {
+            try container.encode(openaiModel, forKey: .openaiModel)
+        } else {
+            try container.encodeNil(forKey: .openaiModel)
+        }
+        if let openaiReasoningEffort {
+            try container.encode(
+                openaiReasoningEffort,
+                forKey: .openaiReasoningEffort
+            )
+        } else {
+            try container.encodeNil(forKey: .openaiReasoningEffort)
+        }
+    }
 }
 
 struct AgentChatRequest: Encodable {

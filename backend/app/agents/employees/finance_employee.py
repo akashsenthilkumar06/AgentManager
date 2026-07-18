@@ -11,7 +11,7 @@ REQUIRED_TOOL = ("lookup-invoice", "lookup_invoice")
 
 
 async def run(mock_system: MockSystem, message: str) -> dict[str, Any]:
-    invoice_id = _identifier(message.upper(), r"INV-\\d+", "INV-2048")
+    invoice_id = _identifier(message.upper(), r"INV-\d+", "INV-2048")
     output = await mock_system.get(f"/mock/invoices/{invoice_id}")
     content = (
         f"{invoice_id} is currently {output['status'].replace('_', ' ')}. "

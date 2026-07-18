@@ -12,8 +12,22 @@ The project is designed to make the complete loop visible in one demo: fleet
 reasoning, context gathering, real tool attachment and execution, ongoing
 reconciliation, and measured before/after evidence.
 
+The primary product surface is now the native macOS SwiftUI application under
+`AgentManagerNative/`. It starts and owns the FastAPI backend as a child
+process, keeps native runtime state isolated under `AgentManagerNative/Runtime`,
+and does not require a browser. The React/Vite client remains available as an
+optional web development surface.
+
 ## What works
 
+- Native macOS dashboard, full-page Manager/Test workspace, managed-agent
+  detail pages, activity, benchmarks, health, and compact retractable
+  navigation
+- Finder folder picker for importing local agents; users do not type absolute
+  paths into the native app
+- Animated Manager and client-agent working states with pulsing avatars,
+  staggered activity dots, cycling operational stages, and Reduce Motion
+  support
 - Live architecture index seeded with agents, tools, endpoints, and data sources
 - Relevance-ranked discovery of reusable system components
 - Optional OpenAI Responses API routing with a deterministic no-key fallback
@@ -57,7 +71,11 @@ reconciliation, and measured before/after evidence.
 - MCP capability discovery for every managed agent through `initialize`, `tools/list`, `prompts/list`, and `resources/list`
 - Editable per-agent MCP endpoints with connection testing and discovered-tool inspection
 - Live client-agent conversations that let OpenAI reason over discovered HTTP(S) MCP tools and execute them remotely
-- Explicit `Live MCP`, `Fallback demo`, and `Local demo` receipts on every client-agent response
+- Explicit `Live MCP`, `Fallback demo`, `Local demo`, and
+  `Live agent failed · no mock response` receipts
+- Capability-aware deterministic routing: supported requests execute the
+  selected agent's enabled tool, while incompatible identifiers are reported
+  as capability mismatches with a matching fleet-agent suggestion
 - An independent support-agent server under `external_agent/` for realistic cross-process MCP testing
 - A full independent Finance Analyst MCP agent under
   `managed_agents/finance_agent/`, colocated with the control plane without
@@ -65,7 +83,8 @@ reconciliation, and measured before/after evidence.
 - Workspace-scoped file discovery plus explicit Auto-only source writes and
   Python verification, with traversal, symlink, size, and secret-file
   protections
-- Standalone multi-page React/Vite control plane with dedicated Dashboard, Workspace, Managed agents, Activity, and System health routes
+- Optional multi-page React/Vite control plane with dedicated Dashboard,
+  Workspace, Managed agents, Activity, and System health routes
 - Mock enterprise commerce endpoints so the demo runs completely locally
 
 ## Architecture
@@ -86,10 +105,12 @@ flowchart LR
     LM -->|Yes| OAI2["OpenAI reasoning loop"]
     OAI2 --> RMCP["External managed-agent MCP endpoint"]
     RMCP --> T["Discovered MCP tool"]
-    LM -->|No or unavailable| DF["Labeled deterministic fallback"]
+    LM -->|Built-in demo| DF["Labeled deterministic execution"]
+    LM -->|Imported runtime failure| EF["Explicit error; no mock response"]
     DF --> T2["Local demo tool"]
     T --> OV["Output verification"]
     T2 --> OV
+    EF --> OV
     OV --> TH["Agent and tool history"]
     AM --> OAI["OpenAI Responses loop or local fallback"]
     RC["Standing reconciliation loop"] --> AS
@@ -107,7 +128,12 @@ flowchart LR
     BE --> BG["Comparison graphs"]
 ```
 
-The React frontend and FastAPI backend are independent applications. Vite owns the UI development and production build; Uvicorn runs only the REST and MCP APIs. Every backend agent has its own module under `backend/app/agents`. REST and MCP transports are separate from the agents, so each agent can later move into an independent service without changing its domain logic.
+The SwiftUI app and FastAPI backend remain separate processes. The native app
+selects an available local backend port, launches Uvicorn, and stops both the
+backend and any owned local-agent processes when the app closes. The optional
+React frontend is also independent: Vite owns its UI build while Uvicorn runs
+only REST and MCP APIs. Every backend agent has its own module under
+`backend/app/agents`; transports remain separate from agent domain logic.
 
 ## Quick start
 
@@ -115,18 +141,43 @@ The React frontend and FastAPI backend are independent applications. Vite owns t
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
-cd frontend && npm install
+cp .env.example .env
+# Add OPENAI_API_KEY to .env for model-backed Manager and live Test runs.
 ```
 
-Start the complete application from one terminal:
+Start the native macOS application from one terminal:
+
+```bash
+make app
+```
+
+The direct launcher is `./AgentManagerNative/agent-manager-native`. The native
+app locates a compatible Python interpreter, starts the backend on an available
+port, and stores its state under `AgentManagerNative/Runtime`. Closing the app
+stops its backend and managed child-agent processes.
+
+Requirements for the native app are macOS 14+, Swift 6/Xcode command-line
+tools, and Python 3.11+ with the project dependencies installed.
+
+### Optional React development client
+
+Install the web dependencies once:
+
+```bash
+cd frontend && npm install && cd ..
+```
+
+Then start the React client and API together:
 
 ```bash
 make dev
 ```
 
-This starts both services, prefixes their combined logs, and stops both with one Ctrl+C. It normally uses ports 5173 and 8000; if either is already occupied, the launcher automatically selects the next open port and prints the exact URLs. The dashboard is preloaded with the primary demo prompt and no API key is required.
+This starts both web services, prefixes their combined logs, and stops both
+with one Ctrl+C. It normally uses ports 5173 and 8000; if either is occupied,
+the launcher selects the next open port and prints the exact URLs.
 
-The UI is divided into focused routes:
+The optional web UI is divided into focused routes:
 
 | Route | Purpose |
 |---|---|
@@ -155,6 +206,11 @@ Navigation, filters, disclosures, cards, feedback, and routed workspaces use a
 shared motion system with reduced-motion accessibility support. Typography uses
 a softer rounded system stack, while monospaced type is reserved for tool names
 and technical contracts.
+
+The native workspace uses the same progressive-disclosure approach. While a
+request is active, it shows operational progress such as runtime startup, MCP
+discovery, tool selection, and output validation. These are auditable execution
+stages, not hidden chain-of-thought.
 
 `make dev` works from both the project root and the `frontend/` directory.
 
@@ -206,8 +262,11 @@ For client-agent Test mode, an HTTP(S) `mcp_endpoint` plus
 `OPENAI_API_KEY` activates the live reasoning path. The model sees the tools
 advertised by that endpoint, chooses tool calls, and the Manager sends those
 calls back to the external MCP server. Missing configuration or top-level live
-failures use the existing deterministic behavior, but the response is marked
-`Fallback demo` with the exact reason; it is never presented as a live result.
+failures use deterministic behavior only for built-in demo agents and label it
+`Fallback demo` with the exact reason. If an imported HTTP agent fails to
+start, the app returns a failed `local:error` receipt labeled
+`Live agent failed · no mock response`; it never substitutes unrelated demo
+business data.
 
 Standing reconciliation does not call OpenAI on its interval. It refreshes MCP
 discovery and existing health probes, compares them with the last JSON-store
@@ -220,17 +279,19 @@ For separate hosting, set `VITE_API_BASE_URL` in the frontend and add the fronte
 
 ## Import and run a local agent
 
-Open **Managed agents** and choose **Add agent**. Enter an absolute directory
-path on the machine running the backend. The import flow:
+Open **Managed agents** and choose **Add agent**, then select the project folder
+in the native Finder picker. The selected path is shown only as read-only
+confirmation and can be changed with **Change Folder**. The import flow:
 
 1. creates an idempotent fleet record and an explicitly connected workspace;
 2. indexes up to 1,000 supported visible source files;
 3. detects README context, agent instructions, project languages, optional MCP
    configuration, and common launch commands from `package.json`, `Makefile`,
-   `pyproject.toml`, and Python entrypoints;
+   `pyproject.toml`, and Python entrypoints; a local
+   `.venv/bin/python` is preferred when present;
 4. makes query-relevant source contents available to the Manager's workspace
    inspection; and
-5. optionally starts the chosen command, or exposes start/stop/log controls in
+5. saves the chosen command and exposes owned background-process controls in
    the imported agent's Overview page.
 
 Commands are parsed into arguments and executed directly in the imported
@@ -238,6 +299,19 @@ directory without a shell. Starting `make dev`, `npm run dev`, or another
 multi-process command creates its own process group, and **Stop agent**
 terminates that complete group. Processes and captured logs are intentionally
 in-memory and stop when the Manager backend shuts down.
+
+For existing saved commands such as `python app.py`, the process runner also
+resolves bare `python`, `python3`, or `uvicorn` through the imported
+workspace's `.venv` when available. Runtime failures retain the exit code and
+final captured output so the UI shows the real startup cause.
+
+No second terminal is required for a managed local agent. **Start & Discover**,
+Test conversations, and benchmarks first probe the configured HTTP MCP
+endpoint; if it is unavailable and the imported agent has a saved run command,
+Agent Manager launches that command in the background, waits for MCP readiness,
+and refreshes the real tool inventory. Remote agents are never launched
+locally, and the standing reconciliation loop observes endpoints without
+starting an entire fleet.
 
 Inspection is always non-mutating. Source writes require an explicit file-edit
 request and **Auto** permission; Review mode records a blocked receipt instead.
@@ -265,11 +339,14 @@ for ticket TCK-9001.
 The Manager calls `/mcp/runtime` using `initialize`, `tools/list`, and
 `tools/call`. `runtime.start` executes only the run command already saved on
 the imported agent, waits for its configured MCP endpoint, and refreshes the
-advertised tools. The execution-evidence disclosure records the MCP gateway
+advertised tools. `runtime.discover` provides the same start-on-demand behavior
+for an imported local agent, while still only executing its already-saved
+command. The execution-evidence disclosure records the MCP gateway
 receipt, process state/PID, workspace summary, endpoint/server name,
-discovered tools, and any remote tool output. Starting, stopping, and tool
-execution require **Auto**; Review mode remains read-only and records a failed
-permission receipt instead of mutating runtime state.
+discovered tools, and any remote tool output. Explicit start, stop, and tool
+execution require **Auto**; connection testing and discovery may ready the
+selected saved local runtime so analysis does not depend on a separate
+terminal.
 
 ### Verify a real AI-authored file change
 
@@ -488,17 +565,21 @@ curl -s http://localhost:8000/mcp/runtime \
 ## Verification
 
 ```bash
-pytest
-python3 -m compileall -q backend
+.venv/bin/pytest -q
+.venv/bin/python -m compileall -q backend managed_agents/finance_agent
+swift test --package-path AgentManagerNative
 cd frontend && npm run check
 cd frontend && npm run build
 ```
 
-The tests cover agent conversations, context import, imported directory
-inspection, Auto-only source writes, Python verification, process control,
-paired benchmark parity/uplift evidence, tool traces, output verification,
-build/reuse pipelines, live execution, continuous reconciliation, request
-validation, and MCP discovery/calling.
+The current suite contains 44 passing backend tests and two native model/config
+tests. It covers agent conversations, capability mismatch routing, the
+Order Support Agent's real deterministic tool path, context import, imported
+directory inspection, workspace-virtual-environment selection, Auto-only source
+writes, Python verification, process control, paired benchmark parity/uplift
+evidence, tool traces, output verification, build/reuse pipelines, live
+execution, continuous reconciliation, request validation, and MCP
+discovery/calling.
 `tests/backend/test_manager_runtime.py` proves both Workspace and Runtime MCP
 paths: the Manager writes and executes a scoped Python file, blocks the same
 request in Review mode, rejects traversal, launches a separate HTTP agent
@@ -516,6 +597,13 @@ For a production version, run generated code in an isolated worker/container, re
 ## Project layout
 
 ```text
+AgentManagerNative/
+  Sources/AgentManagerNative/   Native SwiftUI application and product surfaces
+  Tests/                        Native model/configuration tests
+  Runtime/                      Native-owned backend state and PID (local only)
+  agent-manager-native          Development launcher
+  Package.swift                 Swift package definition
+
 frontend/
   src/
     App.jsx                   Routed React application state
@@ -536,6 +624,8 @@ backend/
     dependencies.py           Dependency and agent composition root
     config.py                 Environment and directory configuration
     agents/
+      employees/                Sectored deterministic agent tool runners
+        order_employee.py       Order Support Agent lookup implementation
       manager_agent.py        Full multi-stage orchestration pipeline
       agentic_manager.py      Conversational client-agent editing loop
       benchmark_agent.py      Paired executable before/after evaluation
@@ -586,7 +676,7 @@ examples/
     hello.py                  File produced by the live AI Manager write/run flow
 
 tests/
-  backend/                    End-to-end API, live MCP, runtime, and fallback tests
+  backend/                    End-to-end API, routing, live MCP, and runtime tests
 ```
 
 ### Agent ownership

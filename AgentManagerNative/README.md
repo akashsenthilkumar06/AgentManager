@@ -31,6 +31,10 @@ OpenAI provider readiness, per-agent model and reasoning controls, and demo
 reset. Navigation stays in a compact macOS menu so workspace content uses the
 full window.
 
+Manager and Test conversations show a native animated working receipt while a
+request is active. The avatar pulse, staggered dots, and cycling runtime/MCP/tool
+stages respect the macOS Reduce Motion accessibility setting.
+
 The launcher automatically gives the native backend the repository-root
 `.env`, including its OpenAI configuration. Supabase credentials used by the
 independent Finance Agent belong in
@@ -57,12 +61,18 @@ managed_agents/finance_agent/.venv/bin/pip install \
 
 In **Managed agents**, choose **Add Agent** and provide:
 
-- Directory: the absolute path to `managed_agents/finance_agent`
-- Run command:
-  `.venv/bin/uvicorn finance_agent.app:app --app-dir .. --host 127.0.0.1 --port 8080`
+- Folder: choose `managed_agents/finance_agent` in the Finder picker
+- Run command: leave blank to detect `.venv/bin/python app.py`
 - MCP endpoint: `http://127.0.0.1:8080/mcp`
 
-After import, use **Start Agent**, then **Test & Discover**. A successful
-connection advertises six tools. `finance.query_invoices` reads the configured
-Supabase Postgres table, while the analysis tools accept explicit
-`supabase://<bucket>/<object>` Storage paths.
+After import, use **Start & Discover**. You do not need a second terminal:
+Agent Manager launches the saved command as an owned background process, waits
+for the MCP endpoint, and advertises the six real tools. Opening Test mode or
+running a benchmark also starts a stopped imported runtime on demand. The child
+process is stopped when Agent Manager closes. `finance.query_invoices` reads
+the configured Supabase Postgres table, while the analysis tools accept
+explicit `supabase://<bucket>/<object>` Storage paths.
+
+The Finance Agent loads `managed_agents/finance_agent/.env` inside its own
+process. A missing invoice remains a grounded empty Supabase result; the native
+app does not replace it with the Manager's local demo invoice fixture.

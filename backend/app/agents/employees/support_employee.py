@@ -11,7 +11,7 @@ REQUIRED_TOOL = ("lookup-ticket", "lookup_ticket")
 
 
 async def run(mock_system: MockSystem, message: str) -> dict[str, Any]:
-    ticket_id = _identifier(message.upper(), r"TCK-\\d+", "TCK-9001")
+    ticket_id = _identifier(message.upper(), r"TCK-\d+", "TCK-9001")
     output = await mock_system.get(f"/mock/tickets/{ticket_id}")
     content = (
         f"{ticket_id} is {output['status'].replace('_', ' ')} with priority {output['priority']}. "

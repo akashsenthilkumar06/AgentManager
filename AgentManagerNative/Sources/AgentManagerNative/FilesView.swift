@@ -74,18 +74,31 @@ struct FilesView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Local path").font(.caption)
-                    HStack {
-                        TextField("/Users/you/projects/my-agent", text: $path)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.body.monospaced())
-                        Button {
-                            chooseFolder()
-                        } label: {
-                            Image(systemName: "folder")
+                    Text("Local folder").font(.caption)
+                    Button {
+                        chooseFolder()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: path.isEmpty ? "folder.badge.plus" : "folder.fill")
+                                .foregroundStyle(AppTheme.accent)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(path.isEmpty ? "Choose Folder…" : URL(fileURLWithPath: path).lastPathComponent)
+                                    .font(.callout.weight(.medium))
+                                if !path.isEmpty {
+                                    Text(path)
+                                        .font(.caption2.monospaced())
+                                        .foregroundStyle(AppTheme.secondaryText)
+                                        .lineLimit(1)
+                                }
+                            }
+                            Spacer()
                         }
-                        .help("Choose a local folder")
+                        .frame(minWidth: 260, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
                     }
+                    .buttonStyle(.bordered)
+                    .help(path.isEmpty ? "Choose a local folder in Finder" : "Change the selected folder")
                 }
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Name").font(.caption)
@@ -338,7 +351,13 @@ struct FilesView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.resolvesAliases = true
+        panel.message = "Choose the local project folder to connect."
         panel.prompt = "Choose Workspace"
+        if !path.isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: path)
+        }
         if panel.runModal() == .OK, let url = panel.url {
             path = url.path
             if name.isEmpty { name = url.lastPathComponent }

@@ -205,22 +205,27 @@ async def discover_managed_agents() -> dict[str, Any]:
 
 @router.post("/api/managed-agents/{agent_id}/discover")
 async def discover_managed_agent(agent_id: str) -> dict[str, Any]:
-    architecture = store.architecture()
-    agent = next((item for item in architecture.agents if item.id == agent_id), None)
-    if agent is None:
-        raise HTTPException(status_code=404, detail="Managed agent not found")
     try:
-        discovered = await architecture_agent.discover_agent(agent, architecture)
+        await managed_agent_operator.discover(agent_id)
     except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=502,
-            detail=f"Could not connect to the MCP endpoint: {exc}",
+            detail=(
+                "Could not reach the MCP endpoint. For imported local agents, "
+                "Agent Manager also tried the saved run command in the "
+                f"background: {exc}"
+            ),
         ) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    agents = [discovered if item.id == agent_id else item for item in architecture.agents]
-    store.update_agents(agents)
-    managed_workspace.sync(discovered)
+    except (OSError, ValueError) as exc:
+        status_code = (
+            404 if str(exc) == "Managed agent not found" else 422
+        )
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    discovered = next(
+        item
+        for item in store.architecture().agents
+        if item.id == agent_id
+    )
     return discovered.model_dump()
 
 
