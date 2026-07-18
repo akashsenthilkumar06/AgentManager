@@ -59,6 +59,9 @@ reconciliation, and measured before/after evidence.
 - Live client-agent conversations that let OpenAI reason over discovered HTTP(S) MCP tools and execute them remotely
 - Explicit `Live MCP`, `Fallback demo`, and `Local demo` receipts on every client-agent response
 - An independent support-agent server under `external_agent/` for realistic cross-process MCP testing
+- A full independent Finance Analyst MCP agent under
+  `managed_agents/finance_agent/`, colocated with the control plane without
+  coupling it to the backend process
 - Workspace-scoped file discovery plus explicit Auto-only source writes and
   Python verification, with traversal, symlink, size, and secret-file
   protections
@@ -572,6 +575,10 @@ external_agent/
   pyproject.toml              Standalone Python package and dependencies
   Makefile                    Independent install and run commands
   README.md                   Server setup and direct protocol checks
+
+managed_agents/
+  README.md                   How bundled independent agents connect to the control plane
+  finance_agent/              Standalone financial-analysis MCP agent and demo datasets
 
 examples/
   hello-agent/

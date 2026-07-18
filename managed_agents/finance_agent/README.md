@@ -1,18 +1,31 @@
 # Finance Analyst Agent
 
-An independent Python 3.12 financial-analysis service. It has no Manager imports or runtime dependency and exposes an MCP-style JSON-RPC endpoint at `POST /mcp`.
+An independent Python 3.12 financial-analysis service bundled inside Agent
+Manager. It has no backend imports or shared runtime dependency and exposes an
+MCP-style JSON-RPC endpoint at `POST /mcp`.
 
 ## Run
 
-```powershell
-cd finance_agent
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn finance_agent.app:app --app-dir .. --host 127.0.0.1 --port 8080
+From the Agent Manager repository root:
+
+```bash
+python3 -m venv managed_agents/finance_agent/.venv
+managed_agents/finance_agent/.venv/bin/pip install -r managed_agents/finance_agent/requirements.txt
+managed_agents/finance_agent/.venv/bin/uvicorn finance_agent.app:app \
+  --app-dir managed_agents --host 127.0.0.1 --port 8080
 ```
 
 Health: `GET http://127.0.0.1:8080/health`.
+
+To manage it in the UI, open **Managed agents**, choose **Add agent**, and use:
+
+- Directory: the absolute path to `managed_agents/finance_agent`
+- Run command: `.venv/bin/uvicorn finance_agent.app:app --app-dir .. --host 127.0.0.1 --port 8080`
+- MCP endpoint: `http://127.0.0.1:8080/mcp`
+
+The Finance Agent remains a separate process even though its source is kept
+inside this repository. This lets Agent Manager inspect, start, stop, discover,
+and call it through the same boundaries used for any external managed agent.
 
 ## MCP example
 
@@ -36,13 +49,16 @@ Upload the dataset file to a Supabase Storage bucket, then provide it as the req
 
 Set these variables in the process that starts the agent (do not put secrets in requests or source control):
 
-```powershell
-$env:SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
-$env:SUPABASE_SECRET_KEY="sb_secret_..."
-uvicorn finance_agent.app:app --app-dir .. --host 127.0.0.1 --port 8080
+```bash
+export SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
+export SUPABASE_SECRET_KEY="sb_secret_..."
+managed_agents/finance_agent/.venv/bin/uvicorn finance_agent.app:app \
+  --app-dir managed_agents --host 127.0.0.1 --port 8080
 ```
 
-Alternatively, copy `finance_agent/.env.example` to `finance_agent/.env` and put the values in `.env`. The service loads this local, Git-ignored file at startup. Keep `.env.example` as placeholders only.
+Alternatively, copy `.env.example` to `.env` in this directory and put the
+values there. The service loads this local, Git-ignored file at startup. Keep
+`.env.example` as placeholders only.
 
 The secret key is required for private buckets. A public bucket can be read with `SUPABASE_URL` alone. The URI supports CSV, JSON, Excel, and Parquet objects. For a single-file upload, use `demo_data/apple/apple_financials.csv`, `demo_data/tesla/tesla_financials.csv`, or `demo_data/microsoft/microsoft_financials.csv`.
 

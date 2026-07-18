@@ -18,8 +18,9 @@ Agents depend on shared contracts from `app/core` and adapters from
   explicit source writes and Python verification for writable imported roots.
 - `app/infrastructure/cloud_data.py` supplies employee agents with either a configured,
   credential-scoped cloud API or a clearly labeled local demo-cloud simulator.
-- Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and optionally
-  `SUPABASE_FINANCE_TABLE=finance_invoices` to run the source-backed Finance
-  Correction demo. Keep the secret key only in the backend environment.
 - `data` contains ignored runtime state.
 - `generated_tools` contains validated generated implementations.
+
+Independent agents that the control plane can run and inspect live outside
+the backend process belong under `../managed_agents`, including the bundled
+Finance Analyst MCP server.

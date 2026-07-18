@@ -31,8 +31,6 @@ from backend.app.infrastructure.openai_manager import OpenAIManagerLoop
 from backend.app.infrastructure.openai_provider import OpenAIProvider
 from backend.app.infrastructure.tool_runtime import ToolRuntime
 from backend.app.infrastructure.workspace_access import WorkspaceAccess
-from backend.app.infrastructure.supabase_finance import SupabaseFinanceRepository
-from backend.app.agents.finance_demo_agent import FinanceDemoAgent
 
 
 settings = Settings.from_env()
@@ -43,12 +41,6 @@ cloud_data = CloudDataConnector(
     settings.cloud_base_url,
     settings.cloud_api_key,
 )
-finance_repository = SupabaseFinanceRepository(
-    settings.supabase_url,
-    settings.supabase_secret_key,
-    settings.supabase_finance_table,
-)
-finance_demo_agent = FinanceDemoAgent(finance_repository)
 runtime = ToolRuntime(settings.generated_dir)
 mcp_client = ManagedAgentMCPClient()
 workspace_access = WorkspaceAccess(settings.workspace_root)

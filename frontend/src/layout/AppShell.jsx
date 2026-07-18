@@ -29,7 +29,6 @@ export default function AppShell({ overview, onReset, children }) {
         <div className="brand"><BrandMark /><div><strong>Agent Manager</strong><small>AGENT OPERATING SYSTEM</small></div></div>
         <nav aria-label="Main navigation">
           {NAVIGATION.map(([path, icon, label]) => <NavLink key={path} to={path} end={path === "/"} onClick={() => setMenuOpen(false)} className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}><span>{icon}</span>{label}</NavLink>)}
-          <NavLink to="/finance-demo" onClick={() => setMenuOpen(false)} className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}><span>F</span>Finance demo</NavLink>
         </nav>
         <div className="sidebar-spacer" />
         <button className="mcp-label mcp-toggle" onClick={() => setConnectionsOpen((open) => !open)}>MCP CONNECTIONS <span>{overview.mcp_servers.length} / {overview.mcp_servers.length} {connectionsOpen ? "⌃" : "⌄"}</span></button>
