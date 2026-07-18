@@ -30,6 +30,7 @@ from backend.app.dependencies import (
     execute_registered_tool,
     import_agent,
     manager_agent,
+    managed_workspace,
     mock_system,
     monitoring_agent,
     runtime,
