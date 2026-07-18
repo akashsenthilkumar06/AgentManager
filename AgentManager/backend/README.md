@@ -10,9 +10,12 @@ Agents depend on shared contracts from `app/core` and adapters from
 
 - `app/api` exposes the workspace REST API.
 - `app/mcp` exposes specialist agents through JSON-RPC MCP endpoints.
+- `app/infrastructure/internal_mcp_client.py` makes the Manager traverse those
+  endpoints through real initialize, discovery, and tool-call requests.
 - `app/dependencies.py` constructs and connects all agents.
 - `app/infrastructure/mcp_client.py` discovers managed-agent capabilities.
-- `app/infrastructure/workspace_access.py` exposes one safe read-only root.
+- `app/infrastructure/workspace_access.py` enforces scoped inspection plus
+  explicit source writes and Python verification for writable imported roots.
 - `app/infrastructure/cloud_data.py` supplies employee agents with either a configured,
   credential-scoped cloud API or a clearly labeled local demo-cloud simulator.
 - Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and optionally

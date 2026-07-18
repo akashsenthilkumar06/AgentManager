@@ -4,7 +4,11 @@ import ast
 import time
 from typing import Any
 
-from backend.app.core.models import ToolRecord, ValidationCheck
+from backend.app.core.models import (
+    ManagerEvaluation,
+    ToolRecord,
+    ValidationCheck,
+)
 from backend.app.infrastructure.mock_system import MockSystem
 from backend.app.infrastructure.tool_runtime import ToolRuntime
 
@@ -82,6 +86,93 @@ class ValidationAgent:
             )
         )
         return checks
+
+    @staticmethod
+    def evaluate_manager_operation(
+        operation_kind: str | None,
+        changes: list[dict[str, Any]],
+        actions: list[dict[str, Any]],
+    ) -> ManagerEvaluation:
+        """Evaluate a Manager edit or operation from its recorded evidence."""
+
+        valid_change = bool(changes) and all(
+            len(str(change.get("after", ""))) >= 12
+            and change.get("after") != change.get("before")
+            for change in changes
+        )
+        runtime_actions = [
+            action
+            for action in actions
+            if action.get("server") == "runtime"
+        ]
+        valid_runtime = bool(runtime_actions) and all(
+            action.get("status") == "passed"
+            for action in runtime_actions
+        )
+        file_actions = [
+            action
+            for action in actions
+            if action.get("tool")
+            in {
+                "workspace.write_file",
+                "workspace.run_python_file",
+            }
+        ]
+        valid_file = bool(file_actions) and all(
+            action.get("status") == "passed"
+            for action in file_actions
+        )
+        valid = valid_change or valid_runtime or valid_file
+
+        if operation_kind == "workspace":
+            summary = (
+                "The Manager completed the requested scoped source-file "
+                "operation inside the imported workspace and retained its "
+                "write or execution evidence."
+                if valid_file
+                else "The requested workspace file operation failed; "
+                "review its scoped action evidence."
+            )
+            checks = [
+                "Imported workspace write permission confirmed",
+                "Relative path remained inside the workspace root",
+                "Sensitive and excluded paths remained blocked",
+                "File hash or Python execution output retained",
+            ]
+        elif operation_kind == "runtime":
+            summary = (
+                "The Manager reached the selected agent through the Runtime "
+                "MCP and recorded real process, discovery, or tool-call "
+                "evidence."
+                if valid_runtime
+                else "One or more requested runtime operations failed; "
+                "review the action evidence before relying on the agent."
+            )
+            checks = [
+                "Scoped workspace access confirmed",
+                "Runtime operation used the Agent Runtime MCP",
+                "Process and endpoint state captured",
+                "Live tool provenance retained when a tool was called",
+            ]
+        else:
+            summary = (
+                "The proposed edit is scoped, reversible, and addresses the "
+                "requested agent behavior."
+                if valid_change
+                else "The proposal needs a more concrete edit before it can "
+                "be applied."
+            )
+            checks = [
+                "Client workspace inspected",
+                "Existing instructions preserved",
+                "Change remains within agent configuration boundary",
+                "Rollback data captured",
+            ]
+        return ManagerEvaluation(
+            status="passed" if valid else "needs_review",
+            summary=summary,
+            checks=checks,
+        )
 
     @staticmethod
     def _schema_error(schema: dict[str, Any]) -> str | None:

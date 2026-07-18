@@ -517,6 +517,12 @@ def test_manager_chat_selects_tools_stages_and_applies_agent_change(client):
         "Developer Specialist",
         "Validation Specialist",
     }
+    for action in manager_message["actions"]:
+        receipt = action["evidence"]["gateway_receipt"]
+        assert action["evidence"]["protocol"] == "MCP JSON-RPC 2.0"
+        assert receipt["endpoint"] == f"/mcp/{action['server']}"
+        assert receipt["call"] == "tools/call"
+        assert receipt["advertised_tool"] == action["tool"]
     assert manager_message["changes"][0]["status"] == "pending"
     assert manager_message["evaluation"]["status"] == "passed"
     assert manager_message["provider"] == "local:deterministic"
@@ -543,6 +549,26 @@ def test_manager_chat_selects_tools_stages_and_applies_agent_change(client):
     )
     assert instructions_file.exists()
     assert "code change" in instructions_file.read_text(encoding="utf-8")
+
+
+def test_manager_greeting_does_not_stage_an_unrequested_change(client):
+    response = client.post(
+        "/api/manager/message",
+        json={
+            "agent_id": "coding-agent",
+            "message": "Hi, how are you today?",
+            "autonomy": "review",
+        },
+    )
+
+    assert response.status_code == 200
+    manager_message = response.json()["messages"][-1]
+    assert manager_message["changes"] == []
+    assert manager_message["actions"] == []
+    assert manager_message["evaluation"] is None
+    assert "staged for your review" not in manager_message["content"]
+    assert "not been written" not in manager_message["content"]
+    assert "No change was proposed" in manager_message["content"]
 
 
 def test_manager_auto_mode_applies_validated_change_immediately(client):

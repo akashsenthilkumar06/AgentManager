@@ -50,12 +50,18 @@ reconciliation, and measured before/after evidence.
 - Focused or full agent-context import for each request
 - Per-message tool traces and acceptance-criteria-based output verification
 - Minimal MCP Streamable HTTP-style JSON-RPC gateways for the specialist services
+- Manager specialist coordination through real internal MCP
+  `initialize → tools/list → tools/call` handshakes for Architecture, Workspace,
+  Developer, Validation, and Runtime operations, with gateway receipts retained
+  on every action
 - MCP capability discovery for every managed agent through `initialize`, `tools/list`, `prompts/list`, and `resources/list`
 - Editable per-agent MCP endpoints with connection testing and discovered-tool inspection
 - Live client-agent conversations that let OpenAI reason over discovered HTTP(S) MCP tools and execute them remotely
 - Explicit `Live MCP`, `Fallback demo`, and `Local demo` receipts on every client-agent response
 - An independent support-agent server under `external_agent/` for realistic cross-process MCP testing
-- Read-only, workspace-scoped file discovery for Manager context with traversal and secret-file protections
+- Workspace-scoped file discovery plus explicit Auto-only source writes and
+  Python verification, with traversal, symlink, size, and secret-file
+  protections
 - Standalone multi-page React/Vite control plane with dedicated Dashboard, Workspace, Managed agents, Activity, and System health routes
 - Mock enterprise commerce endpoints so the demo runs completely locally
 
@@ -66,8 +72,8 @@ flowchart LR
     U["Fleet change request"] --> AM["Manager Agent"]
     AM --> AS["Architecture MCP"]
     AM --> WS["Workspace MCP"]
-    AM --> DS["Developer specialist"]
-    AM --> VS["Validation specialist"]
+    AM --> DS["Developer MCP"]
+    AM --> VS["Validation MCP"]
     AM --> RT["Agent Runtime MCP"]
     WS --> MA["Selected client agent"]
     DS --> MA
@@ -178,13 +184,15 @@ apply bounded output tokens and retries, and preserve visible local fallback
 behavior.
 
 Each managed agent can inherit those defaults or choose its own GPT-5.6 Sol,
-Terra, or Luna model and reasoning effort from **Managed agents → agent →
-Overview → OpenAI model**. These settings control both the Manager's OpenAI
-orchestration for that agent and the Manager-hosted live Responses API loop in
-**Workspace → Test client**; they do not silently reconfigure the internal
-model of a separately hosted agent. Every successful live Test response
-includes its effective model and reasoning effort in the verification
-evidence. Local and fallback demo conversations do not call OpenAI.
+Terra, or Luna model and reasoning effort directly from the model control in
+the **Workspace** header or from **Managed agents → agent → Overview → OpenAI
+model**. Both controls persist through the same agent-update API. These
+settings control the Manager's OpenAI orchestration for that agent and the
+Manager-hosted live Responses API loop in **Workspace → Test client**; they do
+not silently reconfigure the internal model of a separately hosted agent.
+Every successful live Test response includes its effective model and reasoning
+effort in the verification evidence. Local and fallback demo conversations do
+not call OpenAI.
 
 After startup, open **System health → OpenAI Responses API → Test connection**.
 This explicit button sends one small readiness request and reports the actual
@@ -212,7 +220,7 @@ For separate hosting, set `VITE_API_BASE_URL` in the frontend and add the fronte
 Open **Managed agents** and choose **Add agent**. Enter an absolute directory
 path on the machine running the backend. The import flow:
 
-1. creates an idempotent fleet record and a connected, read-only workspace;
+1. creates an idempotent fleet record and an explicitly connected workspace;
 2. indexes up to 1,000 supported visible source files;
 3. detects README context, agent instructions, project languages, optional MCP
    configuration, and common launch commands from `package.json`, `Makefile`,
@@ -228,15 +236,20 @@ multi-process command creates its own process group, and **Stop agent**
 terminates that complete group. Processes and captured logs are intentionally
 in-memory and stop when the Manager backend shuts down.
 
-The current source connection is read-only: the Manager can inspect project
-files and edit the managed agent's own configuration/instructions, but it does
-not silently rewrite arbitrary imported source. `.env` files, credentials,
-private keys, Git internals, dependency directories, and build output remain
-excluded. Symlinks that resolve outside the imported root are rejected.
-Managed subprocesses inherit normal runtime settings such as `PATH`, but the
-launcher removes API-key, token, password, credential, private-key, and
-secret-like control-plane environment variables. An external agent should load
-its own credentials from its own environment or excluded local `.env`.
+Inspection is always non-mutating. Source writes require an explicit file-edit
+request and **Auto** permission; Review mode records a blocked receipt instead.
+The Workspace MCP can create or replace supported visible text/source files
+only within the imported root and an existing parent directory. It rejects
+hidden paths, traversal, unsupported or binary files, oversized content, and
+symlinks. `.env` files, credentials, private keys, Git internals, dependency
+directories, and build output remain excluded.
+
+The Workspace MCP can also run one explicitly named `.py` file for verification
+without a shell, with captured output and a ten-second timeout. Both Workspace
+and runtime subprocesses inherit normal settings such as `PATH`, but remove
+API-key, token, password, credential, private-key, and secret-like control-plane
+environment variables. An external agent should load its own credentials from
+its own environment or excluded local `.env`.
 
 The conversational Manager can operate the imported runtime from **Workspace →
 Manager**. Select **Auto** permission and ask, for example:
@@ -250,10 +263,38 @@ The Manager calls `/mcp/runtime` using `initialize`, `tools/list`, and
 `tools/call`. `runtime.start` executes only the run command already saved on
 the imported agent, waits for its configured MCP endpoint, and refreshes the
 advertised tools. The execution-evidence disclosure records the MCP gateway
-receipt, process state/PID, read-only workspace summary, endpoint/server name,
+receipt, process state/PID, workspace summary, endpoint/server name,
 discovered tools, and any remote tool output. Starting, stopping, and tool
 execution require **Auto**; Review mode remains read-only and records a failed
 permission receipt instead of mutating runtime state.
+
+### Verify a real AI-authored file change
+
+The repository contains an intentionally tiny imported workspace at
+`examples/hello-agent/`. With the OpenAI connection enabled:
+
+1. Add `examples/hello-agent/` from **Managed agents → Add agent**, or select
+   the existing **Hello File Agent** if it is already imported.
+2. Open it in **Workspace → Manager**, choose **Auto**, and send:
+
+   ```text
+   Create hello.py in this imported workspace with a tiny Python program that
+   prints exactly hello file. Then run the file and report the real stdout and
+   file hash. Do not edit the agent instructions.
+   ```
+
+3. Expand the execution evidence. A live run shows provider
+   `openai:<selected-model>`, no staged instruction changes, and successful
+   calls to `workspace.inspect`, `workspace.write_file`, and
+   `workspace.run_python_file` through `/mcp/workspace`.
+4. Confirm `examples/hello-agent/hello.py` exists and run it independently:
+
+   ```bash
+   .venv/bin/python examples/hello-agent/hello.py
+   ```
+
+   Its output is `hello file`. The checked-in example was produced through
+   this OpenAI-backed Manager flow rather than pre-seeded as an input fixture.
 
 ## Paired benchmarks
 
@@ -361,10 +402,14 @@ export AGENT_MANAGER_WORKSPACE_ROOT="/absolute/path/to/a/codebase"
 make dev
 ```
 
-Imported-agent directories create additional explicit read-only boundaries.
-Every boundary blocks traversal outside its root and applies the same secret,
-dependency, build, and binary exclusions. Production deployments should mount
-only repositories the Manager is authorized to inspect.
+Imported-agent directories create additional explicit boundaries. Reading is
+available for scoped context; writing and Python execution require an explicit
+request in Auto mode. Every boundary blocks traversal outside its root and
+applies the same secret, dependency, build, binary, hidden-path, and symlink
+exclusions. Production deployments should mount only repositories the Manager
+is authorized to inspect and modify. The Auto/Review switch is an MVP
+application guard, not a substitute for production authentication and
+operating-system isolation.
 
 ## Demo script
 
@@ -447,13 +492,17 @@ cd frontend && npm run build
 ```
 
 The tests cover agent conversations, context import, imported directory
-inspection and process control, paired benchmark parity/uplift evidence, tool
-traces, output verification, build/reuse pipelines, live
-execution, continuous reconciliation, request validation, and MCP
-discovery/calling. `tests/backend/test_manager_runtime.py` launches a separate
-HTTP agent process and proves the Manager can read its scoped source, complete
-the Runtime MCP handshake, start it, discover its tool, execute it with
-distinctive live provenance, stop it, and enforce Review/Auto permission.
+inspection, Auto-only source writes, Python verification, process control,
+paired benchmark parity/uplift evidence, tool traces, output verification,
+build/reuse pipelines, live execution, continuous reconciliation, request
+validation, and MCP discovery/calling.
+`tests/backend/test_manager_runtime.py` proves both Workspace and Runtime MCP
+paths: the Manager writes and executes a scoped Python file, blocks the same
+request in Review mode, rejects traversal, launches a separate HTTP agent
+process, discovers and calls its real tool, captures distinctive live
+provenance, and stops it. Manager editing tests also assert that Architecture,
+Workspace, Developer, and Validation actions each retain a real MCP gateway
+receipt rather than only an in-process label.
 
 ## Security posture and MVP boundaries
 
@@ -508,13 +557,13 @@ backend/
       mcp_client.py           Managed-agent MCP discovery and tool-call client
       internal_mcp_client.py  Real JSON-RPC client for Manager specialist calls
       managed_agent_operator.py  Run/discover/call boundary for managed agents
-      managed_workspace.py    Per-client editable local file sectors
+      managed_workspace.py    Per-client and imported-agent workspace boundary
       agent_process.py        Explicit imported-agent process-group controls
       openai_manager.py       OpenAI Responses API function-calling loop
       openai_provider.py      Shared auth, request defaults, retries, and diagnostics
       mock_system.py          Local enterprise API stand-ins
       tool_runtime.py         Generated-tool execution runtime
-      workspace_access.py     Scoped, read-only file inspection
+      workspace_access.py     Scoped inspection, source writes, and Python runs
   data/                       Runtime state, ignored by Git
   generated_tools/            Validated generated modules
 
@@ -523,6 +572,11 @@ external_agent/
   pyproject.toml              Standalone Python package and dependencies
   Makefile                    Independent install and run commands
   README.md                   Server setup and direct protocol checks
+
+examples/
+  hello-agent/
+    README.md                 Minimal imported-workspace proof fixture
+    hello.py                  File produced by the live AI Manager write/run flow
 
 tests/
   backend/                    End-to-end API, live MCP, runtime, and fallback tests
@@ -533,7 +587,7 @@ tests/
 | Agent | File | Responsibility |
 |---|---|---|
 | Manager | `backend/app/agents/manager_agent.py` | Coordinates the complete build lifecycle |
-| Agentic Manager | `backend/app/agents/agentic_manager.py` | Selects specialists, edits configuration, and operates imported agent runtimes conversationally |
+| Agentic Manager | `backend/app/agents/agentic_manager.py` | Selects MCP specialists, edits configuration/source, and operates imported agent runtimes conversationally |
 | Benchmark | `backend/app/agents/benchmark_agent.py` | Runs identical real capability probes against original and managed configurations |
 | Import | `backend/app/agents/import_agent.py` | Detects, connects, and optionally launches a local agent project |
 | Conversation | `backend/app/agents/conversation_agent.py` | Runs scoped agent turns and verifies grounded outputs |

@@ -1044,6 +1044,23 @@ main.workspace-main { width: calc(100vw - 288px); max-width: none; height: 100vh
 .agent-list-popover strong { font-size: 10px; }
 .agent-list-popover small { margin-top: 4px; color: var(--muted); font-size: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-list-popover > button > i { color: var(--green-dark); font-size: 10px; font-style: normal; text-align: center; }
+.workspace-model-picker { position: relative; z-index: 44; }
+.workspace-model-trigger { min-width: 172px; min-height: 49px; padding: 7px 10px; border: 1px solid #d5dfda; border-radius: 12px; color: var(--ink); background: rgba(255,255,255,.86); box-shadow: 0 4px 14px rgba(35,61,51,.05); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center; gap: 2px 8px; text-align: left; transition: .24s var(--ease-out); }
+.workspace-model-trigger:hover { border-color: #a7c4b5; box-shadow: 0 8px 20px rgba(35,61,51,.08); transform: translateY(-1px); }
+.workspace-model-trigger > span { grid-column: 1; color: var(--faint); font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.workspace-model-trigger > strong { grid-column: 1; overflow: hidden; font: 9px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.workspace-model-trigger > small { grid-column: 2; grid-row: 2; color: var(--green-dark); font-size: 7px; text-transform: capitalize; }
+.workspace-model-trigger > b { grid-column: 2; grid-row: 1; color: #8b9b94; font-size: 9px; }
+.workspace-model-popover { position: absolute; top: calc(100% + 8px); right: 0; width: min(330px, calc(100vw - 32px)); padding: 15px; border: 1px solid rgba(255,255,255,.82); border-radius: 17px; background: linear-gradient(145deg, rgba(251,253,252,.97), rgba(231,241,236,.94)); box-shadow: 0 24px 55px rgba(20,46,36,.2), inset 0 1px 0 rgba(255,255,255,.95); backdrop-filter: blur(28px) saturate(170%); -webkit-backdrop-filter: blur(28px) saturate(170%); animation: agent-list-in .3s var(--ease-out) both; }
+.workspace-model-popover > div { margin-bottom: 13px; display: flex; justify-content: space-between; gap: 12px; }
+.workspace-model-popover > div span { color: #40544b; font-size: 10px; font-weight: 750; }
+.workspace-model-popover > div small { color: var(--faint); font-size: 8px; }
+.workspace-model-popover label { display: block; margin-top: 10px; }
+.workspace-model-popover label > span { display: block; margin-bottom: 6px; color: var(--faint); font-size: 7px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
+.workspace-model-popover select { width: 100%; min-height: 41px; padding: 8px 30px 8px 10px; border: 1px solid #cad8d1; border-radius: 9px; color: var(--ink); background: #fff; font-size: 10px; outline: 0; }
+.workspace-model-popover select:focus { border-color: #7da891; box-shadow: 0 0 0 4px rgba(72,145,113,.08); }
+.workspace-model-popover > p { margin: 11px 0; color: var(--muted); font-size: 8px; line-height: 1.5; }
+.workspace-model-popover .primary-button { width: 100%; min-height: 40px; justify-content: center; }
 
 .agent-editor { grid-template-columns: 270px minmax(550px, 1fr) 300px; }
 .editor-navigation { padding: 28px 15px; }
@@ -1104,6 +1121,7 @@ main.workspace-main { width: calc(100vw - 288px); max-width: none; height: 100vh
   .studio-title h1 { font-size: 20px; white-space: nowrap; }
   .studio-header-actions { gap: 7px; }
   .agent-list-trigger { min-width: 180px; }
+  .workspace-model-trigger { min-width: 145px; }
   .agent-editor { grid-template-columns: 74px 1fr; }
   .editor-canvas { padding: 30px 24px 55px; }
   .editor-choice-grid { grid-template-columns: 1fr; }
@@ -1112,8 +1130,10 @@ main.workspace-main { width: calc(100vw - 288px); max-width: none; height: 100vh
   .menu-orb { top: 14px; left: 14px; width: 43px; height: 43px; }
   .studio-header { min-height: 125px; padding: 12px 12px 12px 70px; align-items: flex-start; flex-wrap: wrap; }
   .studio-title h1 { padding-top: 8px; }
-  .studio-header-actions { width: 100%; margin-left: -58px; display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .studio-header-actions { width: 100%; margin-left: -58px; display: grid; grid-template-columns: minmax(0, 1fr) 112px auto; }
   .agent-list-trigger { width: 100%; min-width: 0; }
+  .workspace-model-trigger { width: 112px; min-width: 0; }
+  .workspace-model-popover { right: -56px; }
   .studio-mode-toggle button { padding: 7px 9px; font-size: 0; }
   .studio-mode-toggle button span { font-size: 14px; }
   .agent-editor { grid-template-columns: 60px 1fr; }

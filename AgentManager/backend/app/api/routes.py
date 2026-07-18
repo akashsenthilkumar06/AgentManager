@@ -87,9 +87,9 @@ async def overview() -> dict[str, Any]:
         },
         "mcp_servers": [
             {"id": "architecture", "name": "Architecture", "status": "connected", "tools": 2},
-            {"id": "workspace", "name": "Client Workspace", "status": "connected", "tools": 1},
-            {"id": "developer", "name": "Developer", "status": "connected", "tools": 1},
-            {"id": "validation", "name": "Validation", "status": "connected", "tools": 1},
+            {"id": "workspace", "name": "Client Workspace", "status": "connected", "tools": 3},
+            {"id": "developer", "name": "Developer", "status": "connected", "tools": 2},
+            {"id": "validation", "name": "Validation", "status": "connected", "tools": 2},
             {"id": "monitoring", "name": "Monitoring", "status": "connected", "tools": 1},
             {"id": "runtime", "name": "Agent Runtime", "status": "connected", "tools": 5},
         ],

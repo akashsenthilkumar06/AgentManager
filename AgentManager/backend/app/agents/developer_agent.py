@@ -18,6 +18,32 @@ class GeneratedArtifact:
 class DeveloperAgent:
     """Produces constrained, inspectable Python tools from a capability request."""
 
+    @staticmethod
+    def propose_instruction_change(
+        objective: str,
+        current_instructions: str,
+        instructions_append: str,
+    ) -> dict[str, str]:
+        """Prepare one bounded, reversible managed-agent instruction patch."""
+
+        addition = instructions_append.strip()
+        if not objective.strip():
+            raise ValueError("A change objective is required")
+        if not addition:
+            raise ValueError("A concrete instruction addition is required")
+        marker = "\n\n## Manager change\n"
+        after = (
+            current_instructions.rstrip() + marker + addition
+        ).strip()[:4000]
+        if after == current_instructions.strip():
+            raise ValueError("The proposed instructions do not change the agent")
+        return {
+            "objective": objective.strip(),
+            "before": current_instructions,
+            "after": after,
+            "instructions_append": addition,
+        }
+
     def generate(self, prompt: str, candidates: list[ReuseCandidate], intent: str | None = None) -> GeneratedArtifact:
         lowered = prompt.lower()
         if intent == "finance_review" or (intent is None and any(word in lowered for word in ("finance", "invoice", "billing", "payment"))):

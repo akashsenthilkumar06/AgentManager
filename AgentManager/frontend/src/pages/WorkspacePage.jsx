@@ -15,6 +15,155 @@ const EDIT_STARTERS = [
   "Should we redesign how this agent uses its current tool?",
 ];
 
+function agentUpdatePayload(agent, overrides = {}) {
+  return {
+    name: agent.name,
+    description: agent.description,
+    owner: agent.owner,
+    mcp_endpoint: agent.mcp_endpoint,
+    instructions: agent.instructions,
+    features: agent.features,
+    response_style: agent.response_style,
+    tool_policy: agent.tool_policy,
+    enabled_tools: agent.enabled_tools,
+    verification_mode: agent.verification_mode,
+    memory_enabled: agent.memory_enabled,
+    openai_model: agent.openai_model || null,
+    openai_reasoning_effort: agent.openai_reasoning_effort || null,
+    ...overrides,
+  };
+}
+
+function WorkspaceModelPicker({
+  agent,
+  openai,
+  onRefresh,
+  notify,
+}) {
+  const [open, setOpen] = useState(false);
+  const [model, setModel] = useState(agent.openai_model || "");
+  const [reasoning, setReasoning] = useState(
+    agent.openai_reasoning_effort || "",
+  );
+  const [saving, setSaving] = useState(false);
+  const options = openai?.model_options || [];
+  const effectiveModel = model || openai?.model || "app default";
+  const selected = options.find(
+    (option) => option.id === effectiveModel,
+  );
+  const reasoningOptions = selected?.reasoning_efforts || [];
+  const effectiveReasoning = reasoning
+    || openai?.reasoning_effort
+    || "provider default";
+
+  function chooseModel(value) {
+    setModel(value);
+    const next = options.find(
+      (option) => option.id === (value || openai?.model),
+    );
+    if (
+      reasoning
+      && next
+      && !next.reasoning_efforts.includes(reasoning)
+    ) {
+      setReasoning("");
+    }
+  }
+
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await api(`/api/managed-agents/${agent.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(
+          agentUpdatePayload(agent, {
+            openai_model: model || null,
+            openai_reasoning_effort: reasoning || null,
+          }),
+        ),
+      });
+      await onRefresh();
+      setOpen(false);
+      notify(`Model updated for ${agent.name}.`);
+    } catch (error) {
+      notify(error.message, true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="workspace-model-picker">
+      <button
+        type="button"
+        className="workspace-model-trigger"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+      >
+        <span>Model</span>
+        <strong>{effectiveModel}</strong>
+        <small>{effectiveReasoning}</small>
+        <b>{open ? "⌃" : "⌄"}</b>
+      </button>
+      {open && (
+        <div className="workspace-model-popover">
+          <div>
+            <span>OpenAI routing</span>
+            <small>Saved per managed agent</small>
+          </div>
+          <label>
+            <span>Model</span>
+            <select
+              value={model}
+              onChange={(event) => chooseModel(event.target.value)}
+            >
+              <option value="">
+                Inherit app default ({openai?.model || "configured"})
+              </option>
+              {options.map((option) => (
+                <option value={option.id} key={option.id}>
+                  {option.label} · {option.role}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Reasoning</span>
+            <select
+              value={reasoning}
+              onChange={(event) => setReasoning(event.target.value)}
+            >
+              <option value="">
+                Inherit app default (
+                {openai?.reasoning_effort || "provider default"})
+              </option>
+              {reasoningOptions.map((effort) => (
+                <option value={effort} key={effort}>
+                  {effort === "none"
+                    ? "None"
+                    : effort.charAt(0).toUpperCase() + effort.slice(1)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p>
+            Applies to Manager work and live client testing for this agent.
+          </p>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={save}
+            disabled={saving}
+          >
+            {saving ? "Saving…" : "Save model"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Verification({ verification, contextUsed, toolCalls }) {
   const [open, setOpen] = useState(false);
   if (!verification) return null;
@@ -114,8 +263,8 @@ function ManagerWorkspace({ agent, openai, onRefresh, notify }) {
   return <div className={`manager-workspace ${liveOpen ? "live-open" : "live-closed"}`}>
     <aside className="manager-history-rail"><button className="new-manager-task" onClick={() => setConversation(null)}>＋ New agent task</button><div className="manager-rail-section"><span>Manager conversations</span>{conversations.length ? conversations.map((item) => <button key={item.id} className={conversation?.id === item.id ? "active" : ""} onClick={() => setConversation(item)}><i>◌</i><span><strong>{item.title}</strong><small>{item.messages.length} messages · {item.autonomy}</small></span></button>) : <p>Your work with the Manager will appear here.</p>}</div></aside>
     <section className="manager-chat"><header className="manager-chat-header"><div><span className="manager-presence"><i />Manager Agent</span><small>Working on {agent.name} · {agent.openai_model || openai?.model || "app default"} / {agent.openai_reasoning_effort || openai?.reasoning_effort || "provider default"}</small></div><button className={`live-work-toggle ${liveOpen ? "active" : ""}`} onClick={() => setLiveOpen((open) => !open)}><span>⌁</span> Live work{latestManagerMessage?.actions.length ? <b>{latestManagerMessage.actions.length}</b> : null}<i>{liveOpen ? "›" : "‹"}</i></button></header>
-      <div className="manager-chat-scroll">{conversation ? <div className="manager-message-list">{conversation.messages.map((message) => <ManagerMessage key={message.id} message={message} onApply={applyChanges} applying={applying} />)}{working && <div className="manager-thinking"><span><i /><i /><i /></span>Manager is selecting tools and inspecting the agent…</div>}<div ref={bottomRef} /></div> : <div className="manager-welcome"><span className="manager-orb">M</span><p className="eyebrow">YOUR AGENTIC MANAGER</p><h2>What should the Manager do with {agent.name}?</h2><p>Ask it to inspect or change the agent—or, for imported agents, launch the runtime, discover MCP tools, and prove a real tool call.</p><div className="manager-starters">{EDIT_STARTERS.map((starter) => <button key={starter} onClick={() => send(null, starter)}>{starter}<span>→</span></button>)}</div></div>}</div>
-      <form className="manager-composer" onSubmit={send}><textarea rows="2" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={`Tell the Manager what to do with ${agent.name}…`} /><div><span><i />{autonomy === "auto" ? "May launch, stop, call tools, and apply validated changes" : "Read-only runtime checks; edits wait for review"}</span><div className="manager-compose-actions"><div className="composer-permission"><span>Permission</span><button type="button" className={autonomy === "review" ? "active" : ""} onClick={() => setAutonomy("review")}>Review</button><button type="button" className={autonomy === "auto" ? "active" : ""} onClick={() => setAutonomy("auto")}>Auto</button></div><button className="manager-send-button" disabled={working || !prompt.trim()}>{working ? "Working…" : "Send"} <b>↑</b></button></div></div></form>
+      <div className="manager-chat-scroll">{conversation ? <div className="manager-message-list">{conversation.messages.map((message) => <ManagerMessage key={message.id} message={message} onApply={applyChanges} applying={applying} />)}{working && <div className="manager-thinking"><span><i /><i /><i /></span>Manager is selecting tools and inspecting the agent…</div>}<div ref={bottomRef} /></div> : <div className="manager-welcome"><span className="manager-orb">M</span><p className="eyebrow">YOUR AGENTIC MANAGER</p><h2>What should the Manager do with {agent.name}?</h2><p>Ask it to inspect or change the agent—or, for imported agents, edit real source files, run Python verification, launch the runtime, and call MCP tools.</p><div className="manager-starters">{EDIT_STARTERS.map((starter) => <button key={starter} onClick={() => send(null, starter)}>{starter}<span>→</span></button>)}</div></div>}</div>
+      <form className="manager-composer" onSubmit={send}><textarea rows="2" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={`Tell the Manager what to do with ${agent.name}…`} /><div><span><i />{autonomy === "auto" ? "May write files, run Python, operate agents, and apply validated changes" : "Inspection only; writes and runtime actions stay blocked"}</span><div className="manager-compose-actions"><div className="composer-permission"><span>Permission</span><button type="button" className={autonomy === "review" ? "active" : ""} onClick={() => setAutonomy("review")}>Review</button><button type="button" className={autonomy === "auto" ? "active" : ""} onClick={() => setAutonomy("auto")}>Auto</button></div><button className="manager-send-button" disabled={working || !prompt.trim()}>{working ? "Working…" : "Send"} <b>↑</b></button></div></div></form>
     </section>
     <aside className="manager-live-panel" aria-hidden={!liveOpen}><div className="manager-live-heading"><div><span>Live work</span><small>{working ? "Orchestrating now" : latestManagerMessage ? "Latest run" : "Waiting for task"}</small></div><button onClick={() => setLiveOpen(false)} aria-label="Collapse live work">×</button></div>{working ? <div className="live-working"><span><i /></span><strong>Understanding request</strong><small>The Manager is deciding which MCP specialist to call first.</small></div> : latestManagerMessage ? <><div className="manager-live-section"><span>Tool route</span>{latestManagerMessage.actions.map((action, index) => <div className="live-action" key={action.id}><b>{index + 1}</b><div><strong>{action.title}</strong><small>{action.server} MCP · {action.tool}</small><em>{action.detail}</em></div><i className={action.status}>✓</i></div>)}</div><div className="manager-live-section"><span>Outcome</span><div className="live-outcome"><strong>{latestManagerMessage.changes.length} change{latestManagerMessage.changes.length === 1 ? "" : "s"}</strong><small>{latestManagerMessage.changes.some((change) => change.status === "pending") ? "Waiting for review" : "Applied to workspace"}</small></div>{latestManagerMessage.evaluation && <div className="live-outcome"><strong>{latestManagerMessage.evaluation.checks.length} checks</strong><small>{latestManagerMessage.evaluation.status}</small></div>}</div></> : <div className="live-empty"><span>⌁</span><strong>No active run</strong><p>Tool calls, changes, and validation will appear here while the Manager works.</p></div>}<div className="manager-live-footer"><span>Target connection</span><strong><i />Local workspace + MCP</strong><small>{agent.mcp_endpoint}</small></div></aside>
   </div>;
@@ -168,5 +317,110 @@ export default function WorkspacePage({ agents, openai, onRefresh, notify }) {
   }
 
   if (!selectedAgent) return null;
-  return <div className="workspace-page-full"><header className="studio-header"><div className="studio-title"><p className="eyebrow">AGENT STUDIO</p><h1>{mode === "edit" ? "Build with your Manager" : "Test your client agent"}</h1><p>{mode === "edit" ? "Describe the change. Our Manager chooses the tools and does the work." : "Query the selected client agent exactly as its users would."}</p></div><div className="studio-header-actions"><div className="agent-list-select"><button className="agent-list-trigger" onClick={() => setAgentListOpen((open) => !open)} aria-expanded={agentListOpen}><span>{selectedAgent.name.charAt(0)}</span><span><small>Client agent</small><strong>{selectedAgent.name}</strong></span><b>{agentListOpen ? "⌃" : "⌄"}</b></button>{agentListOpen && <div className="agent-list-popover"><div className="agent-list-heading"><span>Select a client agent</span><small>{agents.length} available</small></div>{agents.map((agent) => <button key={agent.id} className={agent.id === selectedAgent.id ? "active" : ""} onClick={() => selectAgent(agent.id)}><span>{agent.name.charAt(0)}</span><span><strong>{agent.name}</strong><small>{agent.description}</small></span><i>{agent.id === selectedAgent.id ? "✓" : "›"}</i></button>)}</div>}</div><div className="studio-mode-toggle"><button className={mode === "edit" ? "active" : ""} onClick={() => setMode("edit")}><span>✣</span>Manager</button><button className={mode === "test" ? "active" : ""} onClick={() => setMode("test")}><span>▷</span>Test client</button></div></div></header><div className="studio-body">{mode === "edit" ? <ManagerWorkspace key={selectedAgent.id} agent={selectedAgent} openai={openai} onRefresh={onRefresh} notify={notify} /> : <AgentTester agent={selectedAgent} openai={openai} conversations={conversations} conversation={conversation} setConversation={setConversation} contextMode={contextMode} setContextMode={setContextMode} requestedTool={requestedTool} message={message} setMessage={setMessage} sending={sending} send={sendTest} />}</div></div>;
+  return (
+    <div className="workspace-page-full">
+      <header className="studio-header">
+        <div className="studio-title">
+          <p className="eyebrow">AGENT STUDIO</p>
+          <h1>
+            {mode === "edit"
+              ? "Build with your Manager"
+              : "Test your client agent"}
+          </h1>
+          <p>
+            {mode === "edit"
+              ? "Describe the change. Our Manager chooses the tools and does the work."
+              : "Query the selected client agent exactly as its users would."}
+          </p>
+        </div>
+        <div className="studio-header-actions">
+          <div className="agent-list-select">
+            <button
+              className="agent-list-trigger"
+              onClick={() => setAgentListOpen((open) => !open)}
+              aria-expanded={agentListOpen}
+            >
+              <span>{selectedAgent.name.charAt(0)}</span>
+              <span>
+                <small>Client agent</small>
+                <strong>{selectedAgent.name}</strong>
+              </span>
+              <b>{agentListOpen ? "⌃" : "⌄"}</b>
+            </button>
+            {agentListOpen && (
+              <div className="agent-list-popover">
+                <div className="agent-list-heading">
+                  <span>Select a client agent</span>
+                  <small>{agents.length} available</small>
+                </div>
+                {agents.map((agent) => (
+                  <button
+                    key={agent.id}
+                    className={
+                      agent.id === selectedAgent.id ? "active" : ""
+                    }
+                    onClick={() => selectAgent(agent.id)}
+                  >
+                    <span>{agent.name.charAt(0)}</span>
+                    <span>
+                      <strong>{agent.name}</strong>
+                      <small>{agent.description}</small>
+                    </span>
+                    <i>{agent.id === selectedAgent.id ? "✓" : "›"}</i>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <WorkspaceModelPicker
+            key={`${selectedAgent.id}-${selectedAgent.openai_model || "default"}-${selectedAgent.openai_reasoning_effort || "default"}`}
+            agent={selectedAgent}
+            openai={openai}
+            onRefresh={onRefresh}
+            notify={notify}
+          />
+          <div className="studio-mode-toggle">
+            <button
+              className={mode === "edit" ? "active" : ""}
+              onClick={() => setMode("edit")}
+            >
+              <span>✣</span>Manager
+            </button>
+            <button
+              className={mode === "test" ? "active" : ""}
+              onClick={() => setMode("test")}
+            >
+              <span>▷</span>Test client
+            </button>
+          </div>
+        </div>
+      </header>
+      <div className="studio-body">
+        {mode === "edit" ? (
+          <ManagerWorkspace
+            key={selectedAgent.id}
+            agent={selectedAgent}
+            openai={openai}
+            onRefresh={onRefresh}
+            notify={notify}
+          />
+        ) : (
+          <AgentTester
+            agent={selectedAgent}
+            openai={openai}
+            conversations={conversations}
+            conversation={conversation}
+            setConversation={setConversation}
+            contextMode={contextMode}
+            setContextMode={setContextMode}
+            requestedTool={requestedTool}
+            message={message}
+            setMessage={setMessage}
+            sending={sending}
+            send={sendTest}
+          />
+        )}
+      </div>
+    </div>
+  );
 }

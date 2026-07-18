@@ -52,6 +52,44 @@ class OpenAIManagerLoop:
         },
         {
             "type": "function",
+            "name": "workspace_write_file",
+            "description": "Create or replace one source/text file in the selected imported agent's real directory. Use only when the user explicitly asks to create or edit a file and Auto permission is active.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["path", "content"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Relative path such as hello.py.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Complete UTF-8 file contents.",
+                    },
+                },
+            },
+        },
+        {
+            "type": "function",
+            "name": "workspace_run_python_file",
+            "description": "Run one Python source file in the selected imported agent's real directory and capture stdout and exit status. Use after writing a Python file when execution evidence is requested.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["path"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Relative Python file path.",
+                    },
+                },
+            },
+        },
+        {
+            "type": "function",
             "name": "runtime_status",
             "description": "Ask the Runtime Operator for the selected agent's process, scoped workspace, endpoint, and discovered-tool status.",
             "strict": True,
@@ -181,6 +219,10 @@ class OpenAIManagerLoop:
             "and validate it. For runtime requests, inspect, launch, discover, call, "
             "or stop the independent agent with runtime tools; do not create an "
             "instructions edit unless the user also requested a behavior change. "
+            "For explicit source-file requests on imported agents, inspect first, "
+            "then use workspace_write_file and run the Python file when verification "
+            "is requested. Greetings, questions, and status checks are not edit "
+            "requests: answer them without proposing an instructions change. "
             "Do not claim a change was applied; the application controls approval and writes. "
             "Finish with a concise explanation grounded in returned process and tool evidence."
         )

@@ -30,6 +30,8 @@ class AgenticManager:
     _EMPLOYEE_BY_TOOL: dict[str, str] = {
         "architecture_search": "Architecture Analyst",
         "workspace_inspect": "Workspace Inspector",
+        "workspace_write_file": "Workspace Editor",
+        "workspace_run_python_file": "Workspace Runner",
         "developer_propose_change": "Developer Specialist",
         "validation_evaluate": "Validation Specialist",
         "runtime_status": "Runtime Operator",
@@ -77,6 +79,16 @@ class AgenticManager:
             agent,
             request.message,
         )
+        file_plan = self._local_file_plan(request.message)
+        edit_requested = self._is_instruction_edit_request(
+            request.message
+        )
+        file_write_requested = self._is_file_write_request(
+            request.message
+        )
+        file_run_requested = self._is_file_run_request(
+            request.message
+        )
         tool_state: dict[str, Any] = {
             "agent": agent,
             "prompt": request.message,
@@ -85,7 +97,15 @@ class AgenticManager:
             "changes": changes,
             "evaluation": evaluation,
             "operational": False,
+            "operation_kind": None,
             "runtime_results": [],
+            "file_results": [],
+            "edit_requested": edit_requested,
+            "file_requested": (
+                file_write_requested or file_run_requested
+            ),
+            "file_write_requested": file_write_requested,
+            "file_run_requested": file_run_requested,
         }
 
         async def execute(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -98,12 +118,40 @@ class AgenticManager:
         )
         provider = loop.provider if loop else "local:deterministic"
         if loop is None:
-            await execute("architecture_search", {"prompt": request.message})
-            await execute("workspace_inspect", {})
-            if runtime_plan:
+            if file_plan:
+                await execute("workspace_inspect", {})
+                for tool_name, arguments in file_plan:
+                    await execute(tool_name, arguments)
+                await execute(
+                    "validation_evaluate",
+                    {"objective": request.message},
+                )
+                text = self._local_file_summary(
+                    agent,
+                    actions,
+                )
+            elif runtime_plan:
+                await execute(
+                    "architecture_search",
+                    {"prompt": request.message},
+                )
+                await execute("workspace_inspect", {})
                 for tool_name, arguments in runtime_plan:
                     await execute(tool_name, arguments)
-            else:
+                await execute(
+                    "validation_evaluate",
+                    {"objective": request.message},
+                )
+                text = self._local_runtime_summary(
+                    agent,
+                    actions,
+                )
+            elif edit_requested:
+                await execute(
+                    "architecture_search",
+                    {"prompt": request.message},
+                )
+                await execute("workspace_inspect", {})
                 await execute(
                     "developer_propose_change",
                     {
@@ -113,25 +161,52 @@ class AgenticManager:
                         ),
                     },
                 )
-            await execute("validation_evaluate", {"objective": request.message})
-            text = (
-                self._local_runtime_summary(
-                    agent,
-                    actions,
+                await execute(
+                    "validation_evaluate",
+                    {"objective": request.message},
                 )
-                if runtime_plan
-                else self._local_summary(agent, request, changes)
-            )
+                text = self._local_summary(agent, request, changes)
+            else:
+                text = self._local_general_summary(agent)
         else:
             text = loop.text
-            if runtime_plan and not tool_state["operational"]:
+            if file_plan:
+                action_tools = {
+                    action.tool
+                    for action in actions
+                }
+                forced_file_action = False
+                if "workspace.inspect" not in action_tools:
+                    await execute("workspace_inspect", {})
+                    forced_file_action = True
+                for tool_name, arguments in file_plan:
+                    mcp_tool = {
+                        "workspace_write_file": "workspace.write_file",
+                        "workspace_run_python_file": (
+                            "workspace.run_python_file"
+                        ),
+                    }[tool_name]
+                    if mcp_tool in action_tools:
+                        continue
+                    await execute(tool_name, arguments)
+                    forced_file_action = True
+                if forced_file_action:
+                    text += " " + self._local_file_summary(
+                        agent,
+                        actions,
+                    )
+            elif runtime_plan and not tool_state["operational"]:
                 for tool_name, arguments in runtime_plan:
                     await execute(tool_name, arguments)
                 text += " " + self._local_runtime_summary(
                     agent,
                     actions,
                 )
-            if not changes and not tool_state["operational"]:
+            if (
+                edit_requested
+                and not changes
+                and not tool_state["operational"]
+            ):
                 await execute(
                     "developer_propose_change",
                     {
@@ -139,8 +214,14 @@ class AgenticManager:
                         "instructions_append": self._local_instruction(request.message),
                     },
                 )
-            if tool_state.get("evaluation") is None:
-                await execute("validation_evaluate", {"objective": request.message})
+            if (
+                (changes or tool_state["operational"])
+                and tool_state.get("evaluation") is None
+            ):
+                await execute(
+                    "validation_evaluate",
+                    {"objective": request.message},
+                )
 
         if changes:
             if request.autonomy == "auto":
@@ -155,10 +236,30 @@ class AgenticManager:
                     "not been written yet."
                 )
         elif tool_state["operational"]:
-            text += (
-                " Runtime evidence was recorded without changing the "
-                "agent's files or instructions."
-            )
+            if tool_state["operation_kind"] == "workspace":
+                if any(
+                    action.status == "passed"
+                    for action in actions
+                    if action.tool
+                    in {
+                        "workspace.write_file",
+                        "workspace.run_python_file",
+                    }
+                ):
+                    text += (
+                        " Successful Workspace MCP evidence was recorded "
+                        "against the imported agent's real directory."
+                    )
+                else:
+                    text += (
+                        " The requested Workspace MCP operation was blocked "
+                        "or failed; no source-file change is being reported."
+                    )
+            else:
+                text += (
+                    " Runtime evidence was recorded without changing the "
+                    "agent's files or instructions."
+                )
 
         text += self._delegation_summary(actions)
 
@@ -231,6 +332,16 @@ class AgenticManager:
                 "workspace.inspect",
                 f"{employee}: inspect client workspace",
             ),
+            "workspace_write_file": (
+                "workspace",
+                "workspace.write_file",
+                f"{employee}: write source file",
+            ),
+            "workspace_run_python_file": (
+                "workspace",
+                "workspace.run_python_file",
+                f"{employee}: run Python verification",
+            ),
             "developer_propose_change": (
                 "developer",
                 "developer.propose_change",
@@ -271,17 +382,31 @@ class AgenticManager:
         try:
             if name == "architecture_search":
                 prompt = str(arguments.get("prompt") or state["prompt"])
-                matches = self.architecture_agent.search(
-                    prompt, self.store.architecture()
+                mcp_result = await self.internal_mcp_client.call_tool(
+                    "architecture",
+                    "architecture.search",
+                    {"prompt": prompt},
                 )
+                matches = mcp_result.get("content", [])
+                if not isinstance(matches, list):
+                    matches = []
                 result: dict[str, Any] = {
-                    "matches": [item.model_dump() for item in matches[:5]]
+                    "matches": matches[:5],
+                }
+                evidence = {
+                    "protocol": "MCP JSON-RPC 2.0",
+                    "gateway_receipt": mcp_result.get("_manager_mcp"),
+                    "matches": len(matches),
                 }
                 detail = f"{employee} found {len(matches)} relevant architecture components."
             elif name == "workspace_inspect":
-                result = self.managed_workspace.inspect(
-                    agent,
-                    query=str(state["prompt"]),
+                result = await self.internal_mcp_client.call_tool(
+                    "workspace",
+                    "workspace.inspect",
+                    {
+                        "agent_id": agent.id,
+                        "query": str(state["prompt"]),
+                    },
                 )
                 connected_count = len(result.get("context_files", []))
                 detail = (
@@ -293,7 +418,14 @@ class AgenticManager:
                     "connected_workspace"
                 )
                 evidence = {
-                    "access": "read_only",
+                    "access": (
+                        "auto_write_available"
+                        if (
+                            isinstance(connected_workspace, dict)
+                            and connected_workspace.get("writable")
+                        )
+                        else "read_only"
+                    ),
                     "workspace": connected_workspace,
                     "context_files": [
                         item.get("path")
@@ -302,8 +434,83 @@ class AgenticManager:
                     ],
                     "secret_paths_excluded": True,
                 }
+                mcp_receipt = result.get("_manager_mcp")
+                if isinstance(mcp_receipt, dict):
+                    evidence["protocol"] = "MCP JSON-RPC 2.0"
+                    evidence["gateway_receipt"] = mcp_receipt
+            elif name in {
+                "workspace_write_file",
+                "workspace_run_python_file",
+            }:
+                state["operational"] = True
+                state["operation_kind"] = "workspace"
+                if not state["file_requested"]:
+                    raise ValueError(
+                        "The user did not request a source-file operation"
+                    )
+                if (
+                    name == "workspace_write_file"
+                    and not state["file_write_requested"]
+                ):
+                    raise ValueError(
+                        "The user did not request a source-file write"
+                    )
+                if (
+                    name == "workspace_run_python_file"
+                    and not state["file_run_requested"]
+                ):
+                    raise ValueError(
+                        "The user did not request Python execution"
+                    )
+                if state["autonomy"] != "auto":
+                    raise ValueError(
+                        "Writing or running workspace files requires Auto "
+                        "permission"
+                    )
+                path = str(arguments.get("path", "")).strip()
+                if not path:
+                    raise ValueError("A relative workspace file path is required")
+                remote_tool = {
+                    "workspace_write_file": "workspace.write_file",
+                    "workspace_run_python_file": (
+                        "workspace.run_python_file"
+                    ),
+                }[name]
+                remote_arguments: dict[str, Any] = {
+                    "agent_id": agent.id,
+                    "path": path,
+                    "permission_mode": "auto",
+                }
+                if name == "workspace_write_file":
+                    remote_arguments["content"] = str(
+                        arguments.get("content", "")
+                    )
+                result = await self.internal_mcp_client.call_tool(
+                    "workspace",
+                    remote_tool,
+                    remote_arguments,
+                )
+                state["file_results"].append(result)
+                evidence = self._workspace_operation_evidence(
+                    remote_tool,
+                    result,
+                )
+                if name == "workspace_write_file":
+                    detail = (
+                        f"{employee} {'created' if result.get('created') else 'updated'} "
+                        f"{result.get('path')} in the real imported workspace "
+                        f"({result.get('bytes')} bytes, sha256 "
+                        f"{str(result.get('sha256', ''))[:12]}…)."
+                    )
+                else:
+                    detail = (
+                        f"{employee} ran {result.get('path')} without a shell; "
+                        f"exit code {result.get('exit_code')} and stdout "
+                        f"{str(result.get('stdout', '')).strip()!r}."
+                    )
             elif name.startswith("runtime_"):
                 state["operational"] = True
+                state["operation_kind"] = "runtime"
                 if (
                     name
                     in {
@@ -362,78 +569,90 @@ class AgenticManager:
                     result,
                 )
             elif name == "developer_propose_change":
+                if not state["edit_requested"]:
+                    raise ValueError(
+                        "The user did not request an agent-instructions edit"
+                    )
                 addition = str(arguments.get("instructions_append", "")).strip()
                 if not addition:
                     addition = self._local_instruction(state["prompt"])
-                marker = "\n\n## Manager change\n"
-                after = (agent.instructions.rstrip() + marker + addition).strip()
-                after = after[:4000]
+                proposal = await self.internal_mcp_client.call_tool(
+                    "developer",
+                    "developer.propose_change",
+                    {
+                        "objective": str(
+                            arguments.get("objective")
+                            or state["prompt"]
+                        ),
+                        "current_instructions": agent.instructions,
+                        "instructions_append": addition,
+                    },
+                )
+                after = str(proposal.get("after", "")).strip()
+                before = str(
+                    proposal.get("before", agent.instructions)
+                )
                 change = ManagerChange(
                     id=f"change_{uuid4().hex[:10]}",
                     target=f"{agent.id}/instructions.md",
                     kind="instructions",
-                    summary=str(arguments.get("objective") or state["prompt"]),
-                    before=agent.instructions,
+                    summary=str(
+                        proposal.get("objective")
+                        or arguments.get("objective")
+                        or state["prompt"]
+                    ),
+                    before=before,
                     after=after,
                 )
                 state["changes"].append(change)
                 result = {"change": change.model_dump()}
+                mcp_receipt = proposal.get("_manager_mcp")
+                if isinstance(mcp_receipt, dict):
+                    result["_manager_mcp"] = mcp_receipt
+                    evidence = {
+                        "protocol": "MCP JSON-RPC 2.0",
+                        "gateway_receipt": mcp_receipt,
+                    }
                 detail = f"{employee} prepared a minimal instructions patch."
             elif name == "validation_evaluate":
-                changes: list[ManagerChange] = state["changes"]
-                valid_change = bool(changes) and all(
-                    len(change.after) >= 12 and change.after != change.before
-                    for change in changes
-                )
-                runtime_actions = [
-                    action
-                    for action in state["actions"]
-                    if action.server == "runtime"
-                ]
-                valid_runtime = (
-                    bool(runtime_actions)
-                    and all(
-                        action.status == "passed"
-                        for action in runtime_actions
+                validation_result = (
+                    await self.internal_mcp_client.call_tool(
+                        "validation",
+                        "validation.evaluate",
+                        {
+                            "objective": str(
+                                arguments.get("objective")
+                                or state["prompt"]
+                            ),
+                            "operation_kind": state["operation_kind"],
+                            "changes": [
+                                change.model_dump()
+                                for change in state["changes"]
+                            ],
+                            "actions": [
+                                {
+                                    "server": action.server,
+                                    "tool": action.tool,
+                                    "status": action.status,
+                                    "detail": action.detail,
+                                }
+                                for action in state["actions"]
+                            ],
+                        },
                     )
                 )
-                valid = valid_change or valid_runtime
-                if state["operational"]:
-                    summary = (
-                        "The Manager reached the selected agent through "
-                        "the Runtime MCP and recorded real process, "
-                        "discovery, or tool-call evidence."
-                        if valid_runtime
-                        else "One or more requested runtime operations failed; "
-                        "review the action evidence before relying on the agent."
-                    )
-                    checks = [
-                        "Scoped workspace access confirmed",
-                        "Runtime operation used the Agent Runtime MCP",
-                        "Process and endpoint state captured",
-                        "Live tool provenance retained when a tool was called",
-                    ]
-                else:
-                    summary = (
-                        "The proposed edit is scoped, reversible, and "
-                        "addresses the requested agent behavior."
-                        if valid
-                        else "The proposal needs a more concrete edit "
-                        "before it can be applied."
-                    )
-                    checks = [
-                        "Client workspace inspected",
-                        "Existing instructions preserved",
-                        "Change remains within agent configuration boundary",
-                        "Rollback data captured",
-                    ]
-                evaluation = ManagerEvaluation(
-                    status="passed" if valid else "needs_review",
-                    summary=summary,
-                    checks=checks,
+                evaluation = ManagerEvaluation.model_validate(
+                    validation_result.get("evaluation", {})
                 )
                 state["evaluation"] = evaluation
                 result = {"evaluation": evaluation.model_dump()}
+                mcp_receipt = validation_result.get("_manager_mcp")
+                if isinstance(mcp_receipt, dict):
+                    result["_manager_mcp"] = mcp_receipt
+                    evidence = {
+                        "protocol": "MCP JSON-RPC 2.0",
+                        "gateway_receipt": mcp_receipt,
+                    }
                 detail = f"{employee}: {evaluation.summary}"
             else:
                 raise ValueError(f"Unknown Manager tool: {name}")
@@ -545,6 +764,145 @@ class AgenticManager:
                     )
         return plan
 
+    @classmethod
+    def _local_file_plan(
+        cls,
+        prompt: str,
+    ) -> list[tuple[str, dict[str, Any]]]:
+        """Provide a narrow no-key fallback for explicit simple file writes."""
+
+        if not cls._is_file_request(prompt):
+            return []
+        run_requested = cls._is_file_run_request(prompt)
+        path_match = re.search(
+            r"\b(?:create|write|edit|update|replace|make)\s+"
+            r"(?:a\s+|the\s+)?"
+            r"([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)\b",
+            prompt,
+            flags=re.IGNORECASE,
+        )
+        if path_match is None:
+            run_match = re.search(
+                r"\b(?:run|execute|test|verify)\s+"
+                r"(?:a\s+|the\s+)?"
+                r"([A-Za-z0-9_./-]+\.py)\b",
+                prompt,
+                flags=re.IGNORECASE,
+            )
+            return (
+                [
+                    (
+                        "workspace_run_python_file",
+                        {"path": run_match.group(1)},
+                    )
+                ]
+                if run_match is not None
+                else []
+            )
+        path = path_match.group(1)
+        content = ""
+        if path.lower().endswith(".py"):
+            print_call = re.search(
+                r"print\s*\(\s*([\"'][^\"']*[\"'])\s*\)",
+                prompt,
+                flags=re.IGNORECASE,
+            )
+            if print_call:
+                content = f"print({print_call.group(1)})\n"
+            elif "hello file" in prompt.lower():
+                content = 'print("hello file")\n'
+        if not content:
+            return []
+        plan: list[tuple[str, dict[str, Any]]] = [
+            (
+                "workspace_write_file",
+                {"path": path, "content": content},
+            )
+        ]
+        if run_requested:
+            plan.append(
+                ("workspace_run_python_file", {"path": path})
+            )
+        return plan
+
+    @classmethod
+    def _is_file_request(cls, prompt: str) -> bool:
+        return (
+            cls._is_file_write_request(prompt)
+            or cls._is_file_run_request(prompt)
+        )
+
+    @staticmethod
+    def _is_file_write_request(prompt: str) -> bool:
+        lowered = prompt.lower()
+        return bool(
+            re.search(
+                r"\b(create|write|edit|modify|update|replace|add)\b",
+                lowered,
+            )
+            and (
+                re.search(
+                    r"\b[a-z0-9_./-]+\.(?:py|js|jsx|ts|tsx|json|md|"
+                    r"txt|toml|ya?ml|css|html|sql|sh|java|go|rs|c|"
+                    r"cpp|h)\b",
+                    lowered,
+                )
+                or re.search(
+                    r"\b(file|source|source code|code file)\b",
+                    lowered,
+                )
+            )
+        )
+
+    @classmethod
+    def _is_file_run_request(cls, prompt: str) -> bool:
+        lowered = prompt.lower()
+        return bool(
+            re.search(
+                r"\b(run|execute|test|verify)\b",
+                lowered,
+            )
+            and (
+                re.search(
+                    r"\b[a-z0-9_./-]+\.py\b",
+                    lowered,
+                )
+                or (
+                    cls._is_file_write_request(prompt)
+                    and re.search(
+                        r"\b(it|the file|the script|python)\b",
+                        lowered,
+                    )
+                )
+            )
+        )
+
+    @classmethod
+    def _is_instruction_edit_request(cls, prompt: str) -> bool:
+        if cls._is_file_request(prompt):
+            return False
+        lowered = prompt.lower()
+        return bool(
+            re.search(
+                r"\b(?:change|update|rewrite|edit|modify|add|remove)\b"
+                r".{0,55}\b(?:instruction|prompt|behavior|response|"
+                r"personality|configuration)\b",
+                lowered,
+            )
+            or re.search(
+                r"\bmake\s+(?:this|the)\s+agent\b",
+                lowered,
+            )
+            or re.search(
+                r"^(?:always|never)\b",
+                lowered,
+            )
+            or re.search(
+                r"\b(?:ensure|require)\s+(?:this|the)?\s*agent\b",
+                lowered,
+            )
+        )
+
     @staticmethod
     def _infer_tool_name(
         agent: AgentRecord,
@@ -631,6 +989,46 @@ class AgenticManager:
             if ticket and "ticket" in tool_name.lower():
                 arguments["ticket_id"] = ticket.group(0)
         return arguments
+
+    @staticmethod
+    def _workspace_operation_evidence(
+        remote_tool: str,
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        evidence: dict[str, Any] = {
+            "protocol": "MCP JSON-RPC 2.0",
+            "server": "workspace",
+            "tool": remote_tool,
+            "workspace": {
+                "id": result.get("workspace_id"),
+                "root": result.get("workspace_root"),
+            },
+            "file": {
+                key: result.get(key)
+                for key in (
+                    "path",
+                    "created",
+                    "bytes",
+                    "sha256",
+                    "previous_sha256",
+                )
+                if key in result
+            },
+        }
+        mcp_receipt = result.get("_manager_mcp")
+        if isinstance(mcp_receipt, dict):
+            evidence["gateway_receipt"] = mcp_receipt
+        if remote_tool == "workspace.run_python_file":
+            evidence["execution"] = {
+                key: result.get(key)
+                for key in (
+                    "command",
+                    "exit_code",
+                    "stdout",
+                    "passed",
+                )
+            }
+        return evidence
 
     @staticmethod
     def _runtime_evidence(
@@ -790,6 +1188,41 @@ class AgenticManager:
             f"I analyzed {agent.name} through its architecture and local workspace, "
             f"then prepared {len(changes)} validated change{'s' if len(changes) != 1 else ''} "
             f"for “{request.message}”."
+        )
+
+    @staticmethod
+    def _local_general_summary(agent: AgentRecord) -> str:
+        return (
+            f"I'm ready to work with {agent.name}. Ask me to inspect its "
+            "architecture, edit its instructions, operate its runtime, or—"
+            "for an imported local agent—create and verify source files. "
+            "No change was proposed or left waiting for approval."
+        )
+
+    @staticmethod
+    def _local_file_summary(
+        agent: AgentRecord,
+        actions: list[ManagerAction],
+    ) -> str:
+        file_actions = [
+            action
+            for action in actions
+            if action.tool
+            in {
+                "workspace.write_file",
+                "workspace.run_python_file",
+            }
+        ]
+        passed = sum(
+            action.status == "passed"
+            for action in file_actions
+        )
+        failed = len(file_actions) - passed
+        return (
+            f"I operated on {agent.name}'s imported source workspace through "
+            f"the Workspace MCP: {passed} file action"
+            f"{'s' if passed != 1 else ''} passed"
+            + (f" and {failed} failed." if failed else ".")
         )
 
     @staticmethod

@@ -76,7 +76,7 @@ class ImportAgent:
             name=request.name or root.name,
             root_path=str(root),
             agent_id=agent_id,
-            writable=False,
+            writable=True,
         )
         description = (
             request.description

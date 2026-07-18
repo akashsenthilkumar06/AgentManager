@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from backend.app.core.models import AgentRecord
+from backend.app.core.models import AgentRecord, ConnectedWorkspace
 from backend.app.core.storage import JsonStore
 from backend.app.infrastructure.workspace_access import WorkspaceAccess
 
@@ -28,6 +28,14 @@ class ManagedAgentWorkspace:
     def initialize(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
         for agent in self.store.architecture().agents:
+            if agent.imported and agent.workspace_id:
+                connected = self.store.get_connected_workspace(
+                    agent.workspace_id
+                )
+                if connected is not None and not connected.writable:
+                    self.store.upsert_connected_workspace(
+                        connected.model_copy(update={"writable": True})
+                    )
             self.sync(agent)
 
     def sync(self, agent: AgentRecord) -> None:
@@ -136,15 +144,73 @@ class ManagedAgentWorkspace:
         result["connected_workspace"] = {
             **connected.model_dump(),
             **self.workspace_access.summary(root),
+            "read_only": not connected.writable,
         }
         result["context_files"] = context_files
         return result
+
+    def write_file(
+        self,
+        agent: AgentRecord,
+        relative_path: str,
+        content: str,
+    ) -> dict[str, object]:
+        connected, root = self._writable_workspace(agent)
+        result = self.workspace_access.write_text_file(
+            relative_path,
+            content,
+            root=root,
+        )
+        return {
+            **result,
+            "agent_id": agent.id,
+            "workspace_id": connected.id,
+            "workspace_root": str(root),
+            "writable": True,
+        }
+
+    async def run_python_file(
+        self,
+        agent: AgentRecord,
+        relative_path: str,
+    ) -> dict[str, object]:
+        connected, root = self._writable_workspace(agent)
+        result = await self.workspace_access.run_python_file(
+            relative_path,
+            root=root,
+        )
+        return {
+            **result,
+            "agent_id": agent.id,
+            "workspace_id": connected.id,
+            "workspace_root": str(root),
+        }
 
     def apply_instructions(self, agent: AgentRecord, instructions: str) -> AgentRecord:
         updated = agent.model_copy(update={"instructions": instructions.strip()})
         self.store.update_agent(updated)
         self.sync(updated)
         return updated
+
+    def _writable_workspace(
+        self,
+        agent: AgentRecord,
+    ) -> tuple[ConnectedWorkspace, Path]:
+        if not agent.imported or not agent.workspace_id:
+            raise ValueError(
+                "Source-file operations require an imported local agent"
+            )
+        connected = self.store.get_connected_workspace(agent.workspace_id)
+        if connected is None:
+            raise ValueError("Imported agent workspace is missing")
+        if not connected.writable:
+            raise PermissionError(
+                "This connected workspace is not enabled for file writes"
+            )
+        root = self.workspace_access.validate_root(
+            Path(connected.root_path)
+        )
+        return connected, root
 
     @staticmethod
     def _write(path: Path, content: str) -> None:

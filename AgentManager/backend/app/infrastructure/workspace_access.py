@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import re
+import sys
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +15,7 @@ from backend.app.core.models import (
     WorkspaceFileMatch,
     WorkspaceListing,
 )
+from backend.app.infrastructure.agent_process import AgentProcessManager
 
 
 EXCLUDED_DIRECTORIES = {".git", ".venv", "node_modules", "dist", "build", "__pycache__", ".pytest_cache", ".idea", ".vscode"}
@@ -29,7 +33,7 @@ LANGUAGES = {
 
 
 class WorkspaceAccess:
-    """Read-only, traversal-safe access to one explicitly configured root."""
+    """Traversal-safe access to one explicitly configured workspace root."""
 
     def __init__(self, root: Path, max_preview_bytes: int = 120_000):
         self.root = root.resolve()
@@ -79,6 +83,112 @@ class WorkspaceAccess:
             content=content,
             truncated=truncated,
         )
+
+    def write_text_file(
+        self,
+        relative_path: str,
+        content: str,
+        root: Path | None = None,
+    ) -> dict[str, object]:
+        """Write one non-sensitive source/text file inside a managed root."""
+
+        workspace_root = self._workspace_root(root)
+        normalized = relative_path.strip().replace("\\", "/")
+        if not normalized:
+            raise ValueError("A relative file path is required")
+        relative = Path(normalized)
+        if relative.is_absolute():
+            raise PermissionError("File writes require a relative path")
+        if any(
+            part in {"", ".", ".."} or part.startswith(".")
+            for part in relative.parts
+        ):
+            raise PermissionError(
+                "Hidden paths and traversal are not writable"
+            )
+        path = self._resolve(normalized, workspace_root)
+        if path.suffix.lower() not in TEXT_SUFFIXES:
+            raise PermissionError(
+                "Only supported source and text files are writable"
+            )
+        if not self._visible(path, workspace_root):
+            raise PermissionError("This path is excluded from workspace writes")
+        if path.exists() and (path.is_symlink() or not path.is_file()):
+            raise PermissionError(
+                "Existing symlinks and non-file paths are not writable"
+            )
+        if not path.parent.is_dir():
+            raise FileNotFoundError(
+                "The destination directory does not exist"
+            )
+        encoded = content.encode("utf-8")
+        if len(encoded) > self.max_preview_bytes:
+            raise ValueError(
+                f"File content exceeds the {self.max_preview_bytes}-byte limit"
+            )
+
+        previous = path.read_bytes() if path.exists() else None
+        temporary = path.with_name(f".{path.name}.agent-manager.tmp")
+        temporary.write_bytes(encoded)
+        temporary.replace(path)
+        return {
+            "path": path.relative_to(workspace_root).as_posix(),
+            "created": previous is None,
+            "bytes": len(encoded),
+            "sha256": hashlib.sha256(encoded).hexdigest(),
+            "previous_sha256": (
+                hashlib.sha256(previous).hexdigest()
+                if previous is not None
+                else None
+            ),
+            "preview": content[:800],
+        }
+
+    async def run_python_file(
+        self,
+        relative_path: str,
+        root: Path | None = None,
+        timeout_seconds: float = 10.0,
+    ) -> dict[str, object]:
+        """Run one scoped Python file without a shell or inherited secrets."""
+
+        workspace_root = self._workspace_root(root)
+        path = self._resolve(relative_path.strip(), workspace_root)
+        if path.suffix.lower() != ".py":
+            raise PermissionError("Only Python source files can be run here")
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or not self._visible(path, workspace_root)
+        ):
+            raise FileNotFoundError(relative_path)
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            str(path),
+            cwd=str(workspace_root),
+            env=AgentProcessManager._child_environment(),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        try:
+            stdout, _ = await asyncio.wait_for(
+                process.communicate(),
+                timeout=timeout_seconds,
+            )
+        except TimeoutError:
+            process.kill()
+            await process.wait()
+            raise ValueError(
+                f"Python verification exceeded {timeout_seconds:g} seconds"
+            ) from None
+        output = stdout.decode("utf-8", errors="replace")[:20_000]
+        return {
+            "path": path.relative_to(workspace_root).as_posix(),
+            "command": [sys.executable, path.name],
+            "exit_code": process.returncode,
+            "stdout": output,
+            "passed": process.returncode == 0,
+        }
 
     def search(
         self, query: str, limit: int = 8, root: Path | None = None

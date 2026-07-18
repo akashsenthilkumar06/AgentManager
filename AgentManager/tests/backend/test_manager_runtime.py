@@ -236,7 +236,7 @@ def test_manager_launches_accesses_discovers_calls_and_stops_agent(
     assert manager_message["evaluation"]["status"] == "passed"
 
     workspace_evidence = actions["workspace.inspect"]["evidence"]
-    assert workspace_evidence["access"] == "read_only"
+    assert workspace_evidence["access"] == "auto_write_available"
     assert (
         workspace_evidence["workspace"]["root_path"]
         == str(project.resolve())
@@ -351,3 +351,154 @@ def test_manager_launches_accesses_discovers_calls_and_stops_agent(
         ).json()["status"]
         == "stopped"
     )
+
+
+def test_manager_writes_and_runs_imported_python_file_through_mcp(
+    client,
+    tmp_path,
+):
+    workspace_listing = client.post(
+        "/mcp/workspace",
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": {},
+        },
+    )
+    assert workspace_listing.status_code == 200
+    assert {
+        tool["name"]
+        for tool in workspace_listing.json()["result"]["tools"]
+    } == {
+        "workspace.inspect",
+        "workspace.write_file",
+        "workspace.run_python_file",
+    }
+
+    project = tmp_path / "hello-agent"
+    project.mkdir()
+    (project / "README.md").write_text(
+        "# Hello agent\n\nA minimal imported agent used for file editing.",
+        encoding="utf-8",
+    )
+    imported_response = client.post(
+        "/api/managed-agents/import",
+        json={
+            "path": str(project),
+            "name": "Hello File Agent",
+        },
+    )
+    assert imported_response.status_code == 200
+    imported = imported_response.json()
+    agent_id = imported["agent"]["id"]
+    assert imported["workspace"]["writable"] is True
+
+    denied = client.post(
+        "/api/manager/message",
+        json={
+            "agent_id": agent_id,
+            "message": (
+                'Create hello.py with print("hello file") and run it.'
+            ),
+            "autonomy": "review",
+        },
+    )
+    assert denied.status_code == 200
+    denied_message = denied.json()["messages"][-1]
+    denied_actions = {
+        action["tool"]: action
+        for action in denied_message["actions"]
+    }
+    assert denied_actions["workspace.write_file"]["status"] == "failed"
+    assert "requires Auto permission" in denied_actions[
+        "workspace.write_file"
+    ]["detail"]
+    assert not (project / "hello.py").exists()
+    assert denied_message["changes"] == []
+    assert "staged for your review" not in denied_message["content"]
+
+    created = client.post(
+        "/api/manager/message",
+        json={
+            "agent_id": agent_id,
+            "message": (
+                'Create hello.py with print("hello file") and run it.'
+            ),
+            "autonomy": "auto",
+        },
+    )
+    assert created.status_code == 200
+    manager_message = created.json()["messages"][-1]
+    actions = {
+        action["tool"]: action
+        for action in manager_message["actions"]
+    }
+    assert actions["workspace.write_file"]["status"] == "passed"
+    assert actions["workspace.run_python_file"]["status"] == "passed"
+    assert manager_message["changes"] == []
+    assert manager_message["evaluation"]["status"] == "passed"
+
+    write_evidence = actions["workspace.write_file"]["evidence"]
+    assert write_evidence["protocol"] == "MCP JSON-RPC 2.0"
+    assert write_evidence["gateway_receipt"]["endpoint"] == (
+        "/mcp/workspace"
+    )
+    assert write_evidence["gateway_receipt"]["advertised_tool"] == (
+        "workspace.write_file"
+    )
+    assert write_evidence["file"]["path"] == "hello.py"
+    assert write_evidence["file"]["created"] is True
+    assert write_evidence["file"]["sha256"]
+
+    run_evidence = actions["workspace.run_python_file"]["evidence"]
+    assert run_evidence["execution"]["exit_code"] == 0
+    assert run_evidence["execution"]["stdout"] == "hello file\n"
+    assert run_evidence["execution"]["passed"] is True
+    assert (project / "hello.py").read_text(
+        encoding="utf-8"
+    ) == 'print("hello file")\n'
+
+    rerun = client.post(
+        "/api/manager/message",
+        json={
+            "agent_id": agent_id,
+            "message": "Run hello.py again and report its output.",
+            "autonomy": "auto",
+        },
+    )
+    assert rerun.status_code == 200
+    rerun_message = rerun.json()["messages"][-1]
+    rerun_actions = {
+        action["tool"]: action
+        for action in rerun_message["actions"]
+    }
+    assert "workspace.write_file" not in rerun_actions
+    assert (
+        rerun_actions["workspace.run_python_file"]["evidence"][
+            "execution"
+        ]["stdout"]
+        == "hello file\n"
+    )
+    assert rerun_message["evaluation"]["status"] == "passed"
+
+    traversal = client.post(
+        "/mcp/workspace",
+        json={
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": "workspace.write_file",
+                "arguments": {
+                    "agent_id": agent_id,
+                    "path": "../outside.py",
+                    "content": "print('no')\n",
+                    "permission_mode": "auto",
+                },
+            },
+        },
+    )
+    assert traversal.status_code == 200
+    assert "error" in traversal.json()
+    assert not (tmp_path / "outside.py").exists()
