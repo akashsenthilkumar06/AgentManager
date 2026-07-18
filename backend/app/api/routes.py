@@ -24,6 +24,19 @@ from backend.app.core.models import (
 from backend.app.dependencies import (
     architecture_agent,
     agentic_manager,
+    agent_process_manager,
+    benchmark_agent,
+    conversation_agent,
+    execute_registered_tool,
+    import_agent,
+    manager_agent,
+    mock_system,
+    monitoring_agent,
+    runtime,
+    settings,
+    store,
+    workspace_access,
+)
 
 router = APIRouter()
 
