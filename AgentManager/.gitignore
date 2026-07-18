@@ -13,5 +13,3 @@ backend/data/*.json
 backend/data/managed_workspaces/
 backend/generated_tools/*.py
 !backend/generated_tools/__init__.py
-.agents/
-*.patch
