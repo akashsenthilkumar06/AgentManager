@@ -30,7 +30,7 @@ async def run(mock_system: MockSystem, message: str) -> dict[str, Any]:
         ],
         "evidence": [
             f"Ticket API returned status={output['status']}",
-            f"Matched ticket_id={ticket_id}",
+            f"Matched ticket_id={ticket_id}; source={output['_data_source']}",
         ],
     }
 

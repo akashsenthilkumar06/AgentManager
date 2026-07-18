@@ -30,7 +30,7 @@ async def run(mock_system: MockSystem, message: str) -> dict[str, Any]:
         ],
         "evidence": [
             f"Codebase API returned status={output['status']}",
-            f"Matched repo_id={repo_id}",
+            f"Matched repo_id={repo_id}; source={output['_data_source']}",
         ],
     }
 

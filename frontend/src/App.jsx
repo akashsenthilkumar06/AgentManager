@@ -9,6 +9,7 @@ import DashboardPage from "./pages/DashboardPage";
 import HealthPage from "./pages/HealthPage";
 import HistoryPage from "./pages/HistoryPage";
 import WorkspacePage from "./pages/WorkspacePage";
+import FinanceDemoPage from "./pages/FinanceDemoPage";
 
 export default function App() {
   const location = useLocation();
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="/agents" element={<AgentsPage agents={overview.architecture.agents} conversations={overview.recent_conversations || []} onRefresh={refresh} notify={notify} />} />
         <Route path="/agents/:agentId" element={<AgentWorkspacePage agents={overview.architecture.agents} openai={overview.openai} onRefresh={refresh} notify={notify} />} />
         <Route path="/benchmarks" element={<BenchmarksPage agents={overview.architecture.agents} notify={notify} />} />
+        <Route path="/finance-demo" element={<FinanceDemoPage notify={notify} />} />
         <Route path="/architecture" element={<Navigate to="/agents" replace />} />
         <Route path="/files" element={<Navigate to="/agents" replace />} />
         <Route path="/health" element={<HealthPage health={health} architecture={overview.architecture} setHealth={setHealth} notify={notify} />} />

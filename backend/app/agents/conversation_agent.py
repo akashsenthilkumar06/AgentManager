@@ -16,7 +16,7 @@ from backend.app.core.models import (
 )
 from backend.app.core.storage import JsonStore
 from backend.app.infrastructure.live_conversation import LiveConversationRunner
-from backend.app.infrastructure.mock_system import MockSystem
+from backend.app.infrastructure.cloud_data import CloudDataConnector
 
 
 class ConversationAgent:
@@ -25,7 +25,7 @@ class ConversationAgent:
     def __init__(
         self,
         store: JsonStore,
-        mock_system: MockSystem,
+        mock_system: CloudDataConnector,
         live_runner: LiveConversationRunner,
     ):
         self.store = store

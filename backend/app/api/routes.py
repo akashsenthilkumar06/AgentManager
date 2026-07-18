@@ -28,6 +28,7 @@ from backend.app.dependencies import (
     benchmark_agent,
     conversation_agent,
     execute_registered_tool,
+    finance_demo_agent,
     import_agent,
     manager_agent,
     managed_agent_operator,
@@ -43,6 +44,15 @@ from backend.app.dependencies import (
 from backend.app.infrastructure.openai_provider import OpenAIProviderError
 
 router = APIRouter()
+
+
+@router.post("/api/demos/finance-correction")
+async def run_finance_correction_demo() -> dict[str, Any]:
+    """Run the source-backed employee failure and manager correction demo."""
+    try:
+        return await finance_demo_agent.run(inject_failure=True)
+    except (LookupError, PermissionError, ValueError, httpx.HTTPError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/api/overview")

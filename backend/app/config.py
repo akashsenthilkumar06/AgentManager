@@ -25,6 +25,22 @@ def _optional_env(name: str) -> str | None:
     normalized = value.strip()
     return normalized or None
 
+def _load_local_env() -> None:
+    """Load the ignored project `.env` without overriding real environment values."""
+    env_file = Path(__file__).resolve().parents[2] / ".env"
+    if not env_file.exists():
+        return
+    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_local_env()
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     root_dir: Path
@@ -43,6 +59,11 @@ class Settings:
     frontend_origins: tuple[str, ...]
     workspace_root: Path
     reconciliation_interval_seconds: float
+    cloud_base_url: str | None
+    cloud_api_key: str | None
+    supabase_url: str | None
+    supabase_secret_key: str | None
+    supabase_finance_table: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -143,4 +164,9 @@ class Settings:
                     )
                 ),
             ),
+            cloud_base_url=os.getenv("AGENT_MANAGER_CLOUD_BASE_URL") or None,
+            cloud_api_key=os.getenv("AGENT_MANAGER_CLOUD_API_KEY") or None,
+            supabase_url=os.getenv("SUPABASE_URL") or None,
+            supabase_secret_key=os.getenv("SUPABASE_SECRET_KEY") or None,
+            supabase_finance_table=os.getenv("SUPABASE_FINANCE_TABLE", "finance_invoices"),
         )

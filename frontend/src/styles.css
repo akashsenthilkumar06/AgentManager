@@ -1734,6 +1734,22 @@ main.workspace-main { width: calc(100vw - 288px); max-width: none; height: 100vh
   .openai-provider-action .primary-button { width: 100%; }
 }
 .execution-receipt.fallback small { margin-top: 4px; color: #9a7b51; font-size: 7px; line-height: 1.45; }
+.finance-empty { min-height: 330px; padding: 38px; border: 1px dashed #b8d0c1; border-radius: 16px; background: #fbfefc; display: grid; place-items: center; align-content: center; gap: 10px; text-align: center; }
+.finance-empty > span { color: var(--green-dark); font-size: 30px; }
+.finance-empty h2 { font-size: 22px; }
+.finance-empty p { max-width: 610px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.finance-demo-grid { padding-top: 30px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.finance-source-card, .finance-analysis-card { min-height: 270px; padding: 22px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.finance-source-card { background: linear-gradient(145deg, #f5fbf8, #fff); }
+.finance-source-card h2, .finance-analysis-card h2 { font-size: 21px; }
+.finance-source-card p:not(.eyebrow), .finance-analysis-card p:not(.eyebrow) { margin: 12px 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.finance-source-card code { padding: 2px 4px; border-radius: 4px; background: #eaf2ed; font: 8px var(--mono); }
+.finance-source-card small, .finance-analysis-card small { color: var(--faint); font-size: 8px; line-height: 1.5; }
+.finance-analysis-card.failed { border-color: #e7c6c6; background: #fffafa; }
+.finance-analysis-card.corrected { border-color: #a8d8bb; background: linear-gradient(145deg, #effaf3, #fff); }
+.finance-number { margin: 22px 0 10px; color: var(--forest); font-size: 34px; font-weight: 800; letter-spacing: -.06em; }
+.finance-analysis-card.failed .finance-number { color: #a14747; }
+.finance-missed { margin-top: 16px; padding: 8px 9px; border-radius: 7px; color: #9a4141; background: #fbe8e8; font: 8px var(--mono); }
 .conversation-tool-trace { margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--soft-line); }
 .conversation-tool-trace > span { display: block; margin-bottom: 7px; color: var(--faint); font-size: 7px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
 .conversation-tool-trace details { margin-top: 6px; border: 1px solid var(--soft-line); border-radius: 8px; background: #fff; overflow: hidden; }

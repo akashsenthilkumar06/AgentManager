@@ -24,17 +24,31 @@ from backend.app.infrastructure.managed_agent_operator import (
     ManagedAgentOperator,
 )
 from backend.app.infrastructure.managed_workspace import ManagedAgentWorkspace
+from backend.app.infrastructure.cloud_data import CloudDataConnector
 from backend.app.infrastructure.mcp_client import ManagedAgentMCPClient
 from backend.app.infrastructure.mock_system import MockSystem
 from backend.app.infrastructure.openai_manager import OpenAIManagerLoop
 from backend.app.infrastructure.openai_provider import OpenAIProvider
 from backend.app.infrastructure.tool_runtime import ToolRuntime
 from backend.app.infrastructure.workspace_access import WorkspaceAccess
+from backend.app.infrastructure.supabase_finance import SupabaseFinanceRepository
+from backend.app.agents.finance_demo_agent import FinanceDemoAgent
 
 
 settings = Settings.from_env()
 store = JsonStore(settings.data_dir / "state.json")
 mock_system = MockSystem()
+cloud_data = CloudDataConnector(
+    mock_system,
+    settings.cloud_base_url,
+    settings.cloud_api_key,
+)
+finance_repository = SupabaseFinanceRepository(
+    settings.supabase_url,
+    settings.supabase_secret_key,
+    settings.supabase_finance_table,
+)
+finance_demo_agent = FinanceDemoAgent(finance_repository)
 runtime = ToolRuntime(settings.generated_dir)
 mcp_client = ManagedAgentMCPClient()
 workspace_access = WorkspaceAccess(settings.workspace_root)
@@ -120,7 +134,7 @@ live_conversation_runner = LiveConversationRunner(
 )
 conversation_agent = ConversationAgent(
     store,
-    mock_system,
+    cloud_data,
     live_conversation_runner,
 )
 openai_manager_loop = OpenAIManagerLoop(openai_provider)
