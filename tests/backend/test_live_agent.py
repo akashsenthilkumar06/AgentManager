@@ -10,7 +10,13 @@ import backend.app.dependencies as dependencies
 from external_agent.app import app as external_agent_app
 
 
-def _agent_update(agent: dict, endpoint: str) -> dict:
+def _agent_update(
+    agent: dict,
+    endpoint: str,
+    *,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> dict:
     return {
         "name": agent["name"],
         "description": agent["description"],
@@ -23,6 +29,16 @@ def _agent_update(agent: dict, endpoint: str) -> dict:
         "enabled_tools": agent["enabled_tools"],
         "verification_mode": agent["verification_mode"],
         "memory_enabled": agent["memory_enabled"],
+        "openai_model": (
+            model
+            if model is not None
+            else agent.get("openai_model")
+        ),
+        "openai_reasoning_effort": (
+            reasoning_effort
+            if reasoning_effort is not None
+            else agent.get("openai_reasoning_effort")
+        ),
     }
 
 
@@ -42,6 +58,8 @@ def test_endpoint_update_discovers_and_calls_standalone_mcp_agent(
 
     async def fake_openai_response(_client, body):
         responses.append(body)
+        assert body["model"] == "gpt-5.6-sol"
+        assert body["reasoning"] == {"effort": "high"}
         if len(responses) == 1:
             advertised_names = {tool["name"] for tool in body["tools"]}
             assert "support_lookup_ticket" in advertised_names
@@ -108,10 +126,17 @@ def test_endpoint_update_discovers_and_calls_standalone_mcp_agent(
     endpoint = "http://standalone-agent.test/mcp"
     updated = client.patch(
         f"/api/managed-agents/{agent['id']}",
-        json=_agent_update(agent, endpoint),
+        json=_agent_update(
+            agent,
+            endpoint,
+            model="gpt-5.6-sol",
+            reasoning_effort="high",
+        ),
     )
     assert updated.status_code == 200
     assert updated.json()["mcp_endpoint"] == endpoint
+    assert updated.json()["openai_model"] == "gpt-5.6-sol"
+    assert updated.json()["openai_reasoning_effort"] == "high"
     assert updated.json()["mcp_tools"] == []
     assert updated.json()["status"] == "degraded"
 
@@ -144,7 +169,7 @@ def test_endpoint_update_discovers_and_calls_standalone_mcp_agent(
     assert conversation.status_code == 200
     answer = conversation.json()["messages"][-1]
     assert answer["execution_mode"] == "live"
-    assert answer["provider"] == "openai:gpt-5.6-terra+mcp"
+    assert answer["provider"] == "openai:gpt-5.6-sol+mcp"
     assert answer["endpoint"] == endpoint
     assert answer["fallback_reason"] is None
     assert answer["tool_calls"][0]["tool_name"] == "support.lookup_ticket"
@@ -154,6 +179,10 @@ def test_endpoint_update_discovers_and_calls_standalone_mcp_agent(
     assert answer["tool_calls"][0]["output"]["proof"] == "LIVE-MCP-TCK-9001"
     assert "LIVE-MCP-TCK-9001" in answer["content"]
     assert answer["verification"]["status"] == "verified"
+    assert (
+        "OpenAI model: gpt-5.6-sol; reasoning effort: high"
+        in answer["verification"]["evidence"]
+    )
     assert len(responses) == 2
 
 
@@ -221,8 +250,8 @@ def test_generated_tool_is_attached_and_called_in_live_conversation(
         "/api/builds",
         json={
             "prompt": (
-                "Build a tool that checks an order shipment status and "
-                "summarizes any delays."
+                "Build a finance tool that checks invoice status and "
+                "summarizes payment risk."
             ),
             "agent_id": agent["id"],
             "deploy": True,
@@ -241,12 +270,12 @@ def test_generated_tool_is_attached_and_called_in_live_conversation(
     attached = next(
         tool
         for tool in configured["attached_tools"]
-        if tool["name"] == "order_status_summary"
+        if tool["name"] == "invoice_status_summary"
     )
     assert attached["provider"] == "manager_runtime"
-    assert attached["tool_id"] == "order_status_summary"
-    assert "order_status_summary" in configured["enabled_tools"]
-    assert "order_status_summary" in {
+    assert attached["tool_id"] == "invoice_status_summary"
+    assert "invoice_status_summary" in configured["enabled_tools"]
+    assert "invoice_status_summary" in {
         tool["name"] for tool in configured["mcp_tools"]
     }
 
@@ -256,16 +285,16 @@ def test_generated_tool_is_attached_and_called_in_live_conversation(
         responses.append(body)
         if len(responses) == 1:
             advertised_names = {tool["name"] for tool in body["tools"]}
-            assert "order_status_summary" in advertised_names
+            assert "invoice_status_summary" in advertised_names
             return {
                 "output": [
                     {
                         "type": "function_call",
                         "id": "function_generated_1",
                         "call_id": "call_generated_1",
-                        "name": "order_status_summary",
+                        "name": "invoice_status_summary",
                         "arguments": json.dumps(
-                            {"order_id": "ORD-1042"}
+                            {"invoice_id": "INV-2048"}
                         ),
                     },
                 ]
@@ -278,9 +307,9 @@ def test_generated_tool_is_attached_and_called_in_live_conversation(
         ]
         assert len(tool_outputs) == 1
         live_result = json.loads(tool_outputs[0]["output"])
-        assert live_result["delayed"] is True
-        assert live_result["delay_hours"] == 14
-        assert "Weather delay" in live_result["summary"]
+        assert live_result["past_due"] is True
+        assert live_result["status"] == "past_due"
+        assert "Due date" in live_result["summary"]
         return {
             "output": [
                 {
@@ -291,16 +320,15 @@ def test_generated_tool_is_attached_and_called_in_live_conversation(
                         {
                             "type": "output_text",
                             "text": (
-                                "ORD-1042 has a 14 hour weather delay, "
-                                "confirmed by the attached live tool."
+                                "INV-2048 is past due, confirmed by the "
+                                "attached live tool."
                             ),
                         }
                     ],
                 }
             ],
             "output_text": (
-                "ORD-1042 has a 14 hour weather delay, confirmed by the "
-                "attached live tool."
+                "INV-2048 is past due, confirmed by the attached live tool."
             ),
         }
 
@@ -313,7 +341,7 @@ def test_generated_tool_is_attached_and_called_in_live_conversation(
         "/api/conversations/message",
         json={
             "agent_id": agent["id"],
-            "message": "Summarize the status and delay for ORD-1042.",
+            "message": "Summarize the payment risk for INV-2048.",
             "context_mode": "full",
         },
     )
@@ -322,13 +350,13 @@ def test_generated_tool_is_attached_and_called_in_live_conversation(
     answer = conversation.json()["messages"][-1]
     assert answer["execution_mode"] == "live"
     assert answer["fallback_reason"] is None
-    assert answer["tool_calls"][0]["tool_name"] == "order_status_summary"
-    assert answer["tool_calls"][0]["tool_id"] == "order_status_summary"
+    assert answer["tool_calls"][0]["tool_name"] == "invoice_status_summary"
+    assert answer["tool_calls"][0]["tool_id"] == "invoice_status_summary"
     assert answer["tool_calls"][0]["provider"] == "manager_runtime"
     assert answer["tool_calls"][0]["endpoint"] == (
-        "local://registered-tools/order_status_summary"
+        "local://registered-tools/invoice_status_summary"
     )
-    assert answer["tool_calls"][0]["output"]["delay_hours"] == 14
+    assert answer["tool_calls"][0]["output"]["past_due"] is True
     assert any(
         "via manager_runtime" in evidence
         for evidence in answer["verification"]["evidence"]

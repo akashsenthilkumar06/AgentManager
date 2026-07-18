@@ -17,7 +17,7 @@ def metric(run: dict, metric_id: str) -> dict:
 def test_benchmark_reports_measured_parity_then_manager_uplift(client):
     baseline_response = client.post(
         "/api/benchmarks",
-        json={"agent_id": "order-support-agent"},
+        json={"agent_id": "finance-agent"},
     )
 
     assert baseline_response.status_code == 200
@@ -36,10 +36,10 @@ def test_benchmark_reports_measured_parity_then_manager_uplift(client):
         "/api/builds",
         json={
             "prompt": (
-                "Build a tool that checks an order shipment status and "
-                "summarizes any delays."
+                "Build a finance tool that checks invoice status and "
+                "summarizes payment risk."
             ),
-            "agent_id": "order-support-agent",
+            "agent_id": "finance-agent",
             "deploy": True,
         },
     )
@@ -48,7 +48,7 @@ def test_benchmark_reports_measured_parity_then_manager_uplift(client):
 
     managed_response = client.post(
         "/api/benchmarks",
-        json={"agent_id": "order-support-agent"},
+        json={"agent_id": "finance-agent"},
     )
     assert managed_response.status_code == 200
     managed_run = managed_response.json()
@@ -57,7 +57,7 @@ def test_benchmark_reports_measured_parity_then_manager_uplift(client):
     added_scenario = next(
         scenario
         for scenario in managed_run["scenarios"]
-        if scenario["required_tool"] == "order_status_summary"
+        if scenario["required_tool"] == "invoice_status_summary"
     )
     assert added_scenario["baseline"]["status"] == "unavailable"
     assert added_scenario["managed"]["status"] == "passed"
@@ -66,7 +66,7 @@ def test_benchmark_reports_measured_parity_then_manager_uplift(client):
 
     history = client.get(
         "/api/benchmarks",
-        params={"agent_id": "order-support-agent"},
+        params={"agent_id": "finance-agent"},
     )
     assert history.status_code == 200
     assert [item["id"] for item in history.json()][:2] == [

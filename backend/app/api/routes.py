@@ -21,15 +21,16 @@ from backend.app.core.models import (
     ToolRecord,
     utc_now,
 )
+from backend.app.core.openai_models import openai_model_catalog
 from backend.app.dependencies import (
     architecture_agent,
     agentic_manager,
-    agent_process_manager,
     benchmark_agent,
     conversation_agent,
     execute_registered_tool,
     import_agent,
     manager_agent,
+    managed_agent_operator,
     managed_workspace,
     mock_system,
     monitoring_agent,
@@ -70,13 +71,17 @@ async def overview() -> dict[str, Any]:
             "last_error": reconciliation.get("last_error"),
             "summary": reconciliation.get("summary", {}),
         },
-        "openai": openai_provider.status(),
+        "openai": {
+            **openai_provider.status(),
+            "model_options": openai_model_catalog(),
+        },
         "mcp_servers": [
             {"id": "architecture", "name": "Architecture", "status": "connected", "tools": 2},
             {"id": "workspace", "name": "Client Workspace", "status": "connected", "tools": 1},
             {"id": "developer", "name": "Developer", "status": "connected", "tools": 1},
             {"id": "validation", "name": "Validation", "status": "connected", "tools": 1},
             {"id": "monitoring", "name": "Monitoring", "status": "connected", "tools": 1},
+            {"id": "runtime", "name": "Agent Runtime", "status": "connected", "tools": 5},
         ],
     }
 
@@ -150,20 +155,13 @@ async def import_managed_agent(
 async def managed_agent_process_status(
     agent_id: str,
 ) -> dict[str, Any]:
-    agent = next(
-        (
-            item
-            for item in store.architecture().agents
-            if item.id == agent_id
-        ),
-        None,
-    )
-    if agent is None:
+    try:
+        return managed_agent_operator.status(agent_id)["process"]
+    except ValueError as exc:
         raise HTTPException(
             status_code=404,
             detail="Managed agent not found",
-        )
-    return agent_process_manager.status(agent_id)
+        ) from exc
 
 
 @router.post("/api/managed-agents/{agent_id}/process/start")
@@ -171,42 +169,12 @@ async def start_managed_agent_process(
     agent_id: str,
     request: AgentProcessStartRequest,
 ) -> dict[str, Any]:
-    agent = next(
-        (
-            item
-            for item in store.architecture().agents
-            if item.id == agent_id
-        ),
-        None,
-    )
-    if agent is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Managed agent not found",
-        )
-    if not agent.imported or not agent.workspace_root:
-        raise HTTPException(
-            status_code=422,
-            detail="Only imported local agents have a runnable workspace",
-        )
-    command = request.command or agent.run_command
-    if not command:
-        raise HTTPException(
-            status_code=422,
-            detail="Configure a run command before starting this agent",
-        )
-    if command != agent.run_command:
-        agent = agent.model_copy(update={"run_command": command})
-        store.update_agent(agent)
-        managed_workspace.sync(agent)
     try:
-        return agent_process_manager.start(
-            agent.id,
-            command,
-            workspace_access.validate_root(
-                Path(agent.workspace_root)
-            ),
+        result = await managed_agent_operator.start(
+            agent_id,
+            request.command,
         )
+        return result["process"]
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -216,7 +184,7 @@ async def stop_managed_agent_process(
     agent_id: str,
 ) -> dict[str, Any]:
     try:
-        return agent_process_manager.stop(agent_id)
+        return managed_agent_operator.stop(agent_id)["process"]
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

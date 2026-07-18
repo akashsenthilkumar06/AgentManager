@@ -52,6 +52,71 @@ class OpenAIManagerLoop:
         },
         {
             "type": "function",
+            "name": "runtime_status",
+            "description": "Ask the Runtime Operator for the selected agent's process, scoped workspace, endpoint, and discovered-tool status.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [],
+                "properties": {},
+            },
+        },
+        {
+            "type": "function",
+            "name": "runtime_start",
+            "description": "Start the selected imported agent with its saved command and wait for its MCP endpoint. Use only for an explicit run, launch, boot, or ensure-live request.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [],
+                "properties": {},
+            },
+        },
+        {
+            "type": "function",
+            "name": "runtime_stop",
+            "description": "Stop the selected imported agent's managed process group. Use only when the user explicitly asks to stop or shut it down.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [],
+                "properties": {},
+            },
+        },
+        {
+            "type": "function",
+            "name": "runtime_discover",
+            "description": "Connect to the selected agent's MCP endpoint and refresh the tools it really advertises.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [],
+                "properties": {},
+            },
+        },
+        {
+            "type": "function",
+            "name": "runtime_call_tool",
+            "description": "Call a real enabled MCP tool on the selected agent when the user explicitly requests execution.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["tool_name", "arguments"],
+                "properties": {
+                    "tool_name": {"type": "string"},
+                    "arguments": {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                },
+            },
+        },
+        {
+            "type": "function",
             "name": "developer_propose_change",
             "description": "Delegate to the Developer Specialist employee to prepare a concrete, minimal change to the selected agent instructions after architecture and workspace inspection.",
             "strict": True,
@@ -90,6 +155,14 @@ class OpenAIManagerLoop:
     ) -> ManagerLoopResult | None:
         if not self.provider.configured:
             return None
+        model = (
+            agent_context.get("openai_model")
+            or self.provider.model
+        )
+        reasoning_effort = (
+            agent_context.get("openai_reasoning_effort")
+            or self.provider.reasoning_effort
+        )
         input_items: list[dict[str, Any]] = [
             {
                 "role": "user",
@@ -102,22 +175,31 @@ class OpenAIManagerLoop:
         instructions = (
             "You are the Manager Agent in an agent-development workspace. "
             "Run your specialist employees deliberately: Architecture Analyst, Workspace Inspector, "
-            "Developer Specialist, and Validation Specialist. "
-            "Analyze the requested change, choose the smallest useful MCP-backed tools, "
-            "inspect before editing, propose a precise change, and validate it. "
+            "Developer Specialist, Validation Specialist, and Runtime Operator. "
+            "Analyze the request and choose the smallest useful MCP-backed tools. "
+            "For behavior changes, inspect before editing, propose a precise change, "
+            "and validate it. For runtime requests, inspect, launch, discover, call, "
+            "or stop the independent agent with runtime tools; do not create an "
+            "instructions edit unless the user also requested a behavior change. "
             "Do not claim a change was applied; the application controls approval and writes. "
-            "Finish with a concise explanation of what you inspected and changed."
+            "Finish with a concise explanation grounded in returned process and tool evidence."
         )
         try:
             for _ in range(5):
-                payload = await self.provider.create_response(
-                    {
-                        "instructions": instructions,
-                        "input": input_items,
-                        "tools": self.TOOLS,
-                        "tool_choice": "auto",
-                        "parallel_tool_calls": True,
+                request_body: dict[str, Any] = {
+                    "model": model,
+                    "instructions": instructions,
+                    "input": input_items,
+                    "tools": self.TOOLS,
+                    "tool_choice": "auto",
+                    "parallel_tool_calls": True,
+                }
+                if reasoning_effort:
+                    request_body["reasoning"] = {
+                        "effort": reasoning_effort,
                     }
+                payload = await self.provider.create_response(
+                    request_body
                 )
                 output = payload.get("output", [])
                 if isinstance(output, list):
@@ -131,7 +213,7 @@ class OpenAIManagerLoop:
                 if not function_calls:
                     return ManagerLoopResult(
                         text=self.provider.output_text(payload),
-                        provider=f"openai:{self.provider.model}",
+                        provider=f"openai:{model}",
                         calls=calls,
                     )
                 for item in function_calls:
@@ -156,7 +238,7 @@ class OpenAIManagerLoop:
                     )
             return ManagerLoopResult(
                 text="I inspected the selected agent, prepared a change, and validated the proposal.",
-                provider=f"openai:{self.provider.model}",
+                provider=f"openai:{model}",
                 calls=calls,
             )
         except (

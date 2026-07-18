@@ -58,9 +58,9 @@ export default function App() {
     <AppShell overview={overview} onReset={resetDemo}>
       <div className="route-stage" key={location.pathname}><Routes location={location}>
         <Route path="/" element={<DashboardPage overview={overview} health={health} />} />
-        <Route path="/workspace" element={<WorkspacePage agents={overview.architecture.agents} onRefresh={refresh} notify={notify} />} />
+        <Route path="/workspace" element={<WorkspacePage agents={overview.architecture.agents} openai={overview.openai} onRefresh={refresh} notify={notify} />} />
         <Route path="/agents" element={<AgentsPage agents={overview.architecture.agents} conversations={overview.recent_conversations || []} onRefresh={refresh} notify={notify} />} />
-        <Route path="/agents/:agentId" element={<AgentWorkspacePage agents={overview.architecture.agents} onRefresh={refresh} notify={notify} />} />
+        <Route path="/agents/:agentId" element={<AgentWorkspacePage agents={overview.architecture.agents} openai={overview.openai} onRefresh={refresh} notify={notify} />} />
         <Route path="/benchmarks" element={<BenchmarksPage agents={overview.architecture.agents} notify={notify} />} />
         <Route path="/architecture" element={<Navigate to="/agents" replace />} />
         <Route path="/files" element={<Navigate to="/agents" replace />} />

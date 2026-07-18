@@ -33,7 +33,10 @@ class DeveloperAgent:
         slug = "invoice_status_summary"
         spec = {
             "name": slug,
-            "description": "Summarizes invoice status, due date, and customer context for finance workflows.",
+            "description": (
+                "Summarizes invoice status, due date, customer context, and "
+                "payment risk for finance workflows."
+            ),
             "input_schema": {
                 "type": "object",
                 "required": ["invoice_id"],

@@ -91,6 +91,11 @@ class LiveConversationRunner:
 
         tools, names = self._function_tools(available)
         capabilities = {tool.name: tool for tool in available}
+        model = agent.openai_model or self.provider.model
+        reasoning_effort = (
+            agent.openai_reasoning_effort
+            or self.provider.reasoning_effort
+        )
         input_items: list[dict[str, Any]] = [
             {
                 "role": "assistant" if message.role == "agent" else "user",
@@ -112,17 +117,22 @@ class LiveConversationRunner:
             timeout=45.0, transport=self.transport
         ) as client:
             for _ in range(6):
+                request_body: dict[str, Any] = {
+                    "model": model,
+                    "instructions": instructions,
+                    "input": input_items,
+                    "tools": tools,
+                    "tool_choice": "auto",
+                    "parallel_tool_calls": True,
+                    "store": False,
+                }
+                if reasoning_effort:
+                    request_body["reasoning"] = {
+                        "effort": reasoning_effort,
+                    }
                 payload = await self._create_response(
                     client,
-                    {
-                        "model": self.provider.model,
-                        "instructions": instructions,
-                        "input": input_items,
-                        "tools": tools,
-                        "tool_choice": "auto",
-                        "parallel_tool_calls": True,
-                        "store": False,
-                    },
+                    request_body,
                 )
                 output = payload.get("output", [])
                 if not isinstance(output, list):
@@ -141,7 +151,11 @@ class LiveConversationRunner:
                     if not text:
                         raise ValueError("Live reasoning loop returned no final text")
                     return self._result(
-                        agent, text, tool_calls
+                        agent,
+                        text,
+                        tool_calls,
+                        model,
+                        reasoning_effort,
                     )
 
                 for item in requested:
@@ -232,9 +246,17 @@ class LiveConversationRunner:
         agent: AgentRecord,
         text: str,
         tool_calls: list[ToolCallRecord],
+        model: str,
+        reasoning_effort: str | None,
     ) -> LiveConversationResult:
         endpoint = agent.mcp_endpoint or ""
-        evidence = [f"Live agent endpoint: {endpoint}"]
+        evidence = [
+            f"Live agent endpoint: {endpoint}",
+            (
+                f"OpenAI model: {model}; reasoning effort: "
+                f"{reasoning_effort or 'provider default'}"
+            ),
+        ]
         for call in tool_calls:
             source = call.output.get("source")
             proof = call.output.get("proof")
@@ -260,7 +282,7 @@ class LiveConversationRunner:
                 "Ground the answer in the real tool execution result",
             ],
             evidence=evidence,
-            provider=f"openai:{self.provider.model}+mcp",
+            provider=f"openai:{model}+mcp",
         )
 
     @staticmethod

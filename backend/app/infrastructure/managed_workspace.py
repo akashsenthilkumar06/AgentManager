@@ -46,6 +46,10 @@ class ManagedAgentWorkspace:
                     "tool_policy": agent.tool_policy,
                     "verification_mode": agent.verification_mode,
                     "memory_enabled": agent.memory_enabled,
+                    "openai_model": agent.openai_model,
+                    "openai_reasoning_effort": (
+                        agent.openai_reasoning_effort
+                    ),
                     "imported": agent.imported,
                     "workspace_id": agent.workspace_id,
                     "workspace_root": agent.workspace_root,

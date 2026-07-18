@@ -26,49 +26,49 @@ def test_reconciliation_detects_drift_duplicates_and_contract_conflicts(
     client,
 ):
     architecture = dependencies.store.architecture()
-    order_tool = next(
-        tool for tool in architecture.tools if tool.id == "lookup-order"
+    invoice_tool = next(
+        tool for tool in architecture.tools if tool.id == "lookup-invoice"
     )
-    shipment_tool = next(
-        tool for tool in architecture.tools if tool.id == "track-shipment"
+    code_tool = next(
+        tool for tool in architecture.tools if tool.id == "review-code"
     )
-    logistics = next(
+    coding = next(
         agent
         for agent in architecture.agents
-        if agent.id == "logistics-agent"
+        if agent.id == "coding-agent"
     )
-    catalog = next(
+    support = next(
         agent
         for agent in architecture.agents
-        if agent.id == "catalog-agent"
+        if agent.id == "support-agent"
     )
     duplicate = MCPToolCapability(
-        name=order_tool.name,
-        description=order_tool.description,
-        input_schema=order_tool.input_schema,
+        name=invoice_tool.name,
+        description=invoice_tool.description,
+        input_schema=invoice_tool.input_schema,
         provider="agent_mcp",
-        provider_endpoint="https://independent-orders.test/mcp",
+        provider_endpoint="https://independent-finance.test/mcp",
     )
     conflict = MCPToolCapability(
-        name=shipment_tool.name,
-        description="An incompatible independently configured shipment tool.",
+        name=code_tool.name,
+        description="An incompatible independently configured code review tool.",
         input_schema={
             "type": "object",
-            "required": ["tracking_number"],
+            "required": ["pull_request"],
             "properties": {
-                "tracking_number": {"type": "string"},
+                "pull_request": {"type": "string"},
             },
         },
         provider="agent_mcp",
-        provider_endpoint="https://independent-shipping.test/mcp",
+        provider_endpoint="https://independent-code.test/mcp",
     )
     dependencies.store.update_agent(
-        logistics.model_copy(
+        coding.model_copy(
             update={"attached_tools": [duplicate]}
         )
     )
     dependencies.store.update_agent(
-        catalog.model_copy(
+        support.model_copy(
             update={"attached_tools": [conflict]}
         )
     )
@@ -94,7 +94,7 @@ def test_reconciliation_detects_drift_duplicates_and_contract_conflicts(
     assert duplicate_finding.trigger.agent == "ArchitectureAgent"
     assert duplicate_finding.trigger.status == "completed"
     assert "without an OpenAI call" in duplicate_finding.trigger.detail
-    assert {"logistics-agent", "order-support-agent"}.issubset(
+    assert {"coding-agent", "finance-agent"}.issubset(
         duplicate_finding.agent_ids
     )
 
@@ -147,7 +147,7 @@ def test_reconciliation_records_endpoint_failure_and_resolution(
     agent = next(
         item
         for item in architecture.agents
-        if item.id == "order-support-agent"
+        if item.id == "support-agent"
     )
     endpoint = "http://standing-agent.test/mcp"
     dependencies.store.update_agent(
@@ -175,7 +175,7 @@ def test_reconciliation_records_endpoint_failure_and_resolution(
     asyncio.run(dependencies.monitoring_agent.reconcile_once())
 
     failed = dependencies.store.get_finding(
-        "endpoint:order-support-agent"
+        "endpoint:support-agent"
     )
     assert failed is not None
     assert failed.status == "open"
@@ -184,7 +184,7 @@ def test_reconciliation_records_endpoint_failure_and_resolution(
     degraded = next(
         item
         for item in dependencies.store.architecture().agents
-        if item.id == "order-support-agent"
+        if item.id == "support-agent"
     )
     assert degraded.status == "degraded"
 
@@ -196,7 +196,7 @@ def test_reconciliation_records_endpoint_failure_and_resolution(
     asyncio.run(dependencies.monitoring_agent.reconcile_once())
 
     resolved = dependencies.store.get_finding(
-        "endpoint:order-support-agent"
+        "endpoint:support-agent"
     )
     assert resolved is not None
     assert resolved.status == "resolved"
@@ -204,7 +204,7 @@ def test_reconciliation_records_endpoint_failure_and_resolution(
     refreshed = next(
         item
         for item in dependencies.store.architecture().agents
-        if item.id == "order-support-agent"
+        if item.id == "support-agent"
     )
     assert refreshed.status == "healthy"
     assert {
@@ -218,6 +218,6 @@ def test_reconciliation_records_endpoint_failure_and_resolution(
         params={"status": "resolved"},
     ).json()
     assert any(
-        finding["key"] == "endpoint:order-support-agent"
+        finding["key"] == "endpoint:support-agent"
         for finding in resolved_api
     )

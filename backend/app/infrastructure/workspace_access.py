@@ -308,11 +308,22 @@ class WorkspaceAccess:
     def _visible(self, path: Path, root: Path) -> bool:
         try:
             relative_parts = path.relative_to(root).parts
+            resolved = path.resolve()
+            if resolved != root and root not in resolved.parents:
+                return False
+            resolved_parts = resolved.relative_to(root).parts
         except ValueError:
             return False
         return (
             not any(part in EXCLUDED_DIRECTORIES for part in relative_parts)
+            and not any(
+                part in EXCLUDED_DIRECTORIES
+                for part in resolved_parts
+            )
             and path.name not in SENSITIVE_NAMES
+            and resolved.name not in SENSITIVE_NAMES
             and path.suffix.lower() not in SENSITIVE_SUFFIXES
+            and resolved.suffix.lower() not in SENSITIVE_SUFFIXES
             and not path.name.startswith(".env")
+            and not resolved.name.startswith(".env")
         )

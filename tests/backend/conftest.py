@@ -15,6 +15,7 @@ import backend.app.main as manager
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
+    dependencies.internal_mcp_client._tools.clear()
     monkeypatch.setattr(dependencies.openai_provider, "api_key", None)
     monkeypatch.setattr(
         dependencies.openai_provider,

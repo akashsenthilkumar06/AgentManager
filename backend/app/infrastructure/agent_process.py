@@ -30,6 +30,17 @@ class AgentProcess:
 class AgentProcessManager:
     """Runs only an explicitly selected command, without a shell."""
 
+    SENSITIVE_ENV_MARKERS = (
+        "API_KEY",
+        "ACCESS_KEY",
+        "AUTH_TOKEN",
+        "CREDENTIAL",
+        "PASSWORD",
+        "PRIVATE_KEY",
+        "SECRET",
+        "TOKEN",
+    )
+
     def __init__(self):
         self._processes: dict[str, AgentProcess] = {}
         self._lock = threading.RLock()
@@ -50,6 +61,7 @@ class AgentProcessManager:
             process = subprocess.Popen(
                 args,
                 cwd=str(cwd),
+                env=self._child_environment(),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -136,6 +148,18 @@ class AgentProcessManager:
                 self.stop(agent_id)
             except (OSError, ValueError):
                 continue
+
+    @classmethod
+    def _child_environment(cls) -> dict[str, str]:
+        """Keep runtime basics while withholding control-plane credentials."""
+        return {
+            name: value
+            for name, value in os.environ.items()
+            if not any(
+                marker in name.upper()
+                for marker in cls.SENSITIVE_ENV_MARKERS
+            )
+        }
 
     @staticmethod
     def _capture_logs(record: AgentProcess) -> None:

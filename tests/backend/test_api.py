@@ -14,7 +14,20 @@ def test_overview_starts_with_demo_architecture(client):
         "endpoints": 4,
         "data_sources": 3,
     }
-    assert len(body["mcp_servers"]) == 5
+    assert len(body["mcp_servers"]) == 6
+    assert {
+        option["id"]
+        for option in body["openai"]["model_options"]
+    } == {
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+    }
+    assert all(
+        option["reasoning_efforts"]
+        == ["none", "low", "medium", "high", "xhigh", "max"]
+        for option in body["openai"]["model_options"]
+    )
 
 
 def test_backend_is_api_only_and_allows_react_dev_origin(client):
@@ -68,7 +81,7 @@ def test_order_capability_builds_validates_registers_and_executes(client):
     assert "continuous probe" in generated["message"]
 
 
-def test_inventory_request_routes_to_inventory_tool(client):
+def test_code_review_request_reuses_existing_fleet_tool(client):
     response = client.post(
         "/api/builds",
         json={"prompt": "Create a code review tool that checks repository health and release risk."},
@@ -76,15 +89,21 @@ def test_inventory_request_routes_to_inventory_tool(client):
 
     build = response.json()
     assert build["status"] == "completed"
-    assert build["tool"]["id"] == "code_health_summary"
-    assert build["plan"]["routing"]["intent"] == "code_review"
+    assert build["decision"] == "reuse"
+    assert build["tool"]["id"] == "review-code"
+    assert build["source_code"] is None
+    assert build["plan"]["fleet_preflight"]["relation"] == "equivalent"
+    assert "duplicate" in build["decision_reason"]
 
     execution = client.post(
-        "/api/tools/code_health_summary/execute",
+        "/api/tools/review-code/execute",
         json={"payload": {"repo_id": "REPO-1"}},
     )
     assert execution.status_code == 200
-    assert execution.json()["result"]["high_risk"] is True
+    result = execution.json()["result"]
+    assert result["status"] == "needs_review"
+    assert result["failing_tests"] == 2
+    assert result["risk"] == "medium"
 
 
 def test_build_reuses_existing_fleet_tool_and_attaches_it_to_target(client):
@@ -92,10 +111,8 @@ def test_build_reuses_existing_fleet_tool_and_attaches_it_to_target(client):
     response = client.post(
         "/api/builds",
         json={
-            "prompt": (
-                "Create a tool that checks inventory availability for a SKU"
-            ),
-            "agent_id": "order-support-agent",
+            "prompt": "Look up invoice status and payment details",
+            "agent_id": "support-agent",
             "deploy": True,
         },
     )
@@ -104,12 +121,12 @@ def test_build_reuses_existing_fleet_tool_and_attaches_it_to_target(client):
     build = response.json()
     assert build["status"] == "completed"
     assert build["decision"] == "attach"
-    assert build["matched_tool_id"] == "check-inventory"
-    assert build["attached_agent_ids"] == ["order-support-agent"]
+    assert build["matched_tool_id"] == "lookup-invoice"
+    assert build["attached_agent_ids"] == ["support-agent"]
     assert build["source_code"] is None
     assert build["plan"]["fleet_preflight"]["relation"] == "equivalent"
     assert build["plan"]["fleet_preflight"]["source_agent_ids"] == [
-        "catalog-agent"
+        "finance-agent"
     ]
     assert "avoids a duplicate" in build["decision_reason"]
     assert client.get("/api/overview").json()["summary"]["counts"]["tools"] == before
@@ -117,53 +134,53 @@ def test_build_reuses_existing_fleet_tool_and_attaches_it_to_target(client):
     target = next(
         agent
         for agent in client.get("/api/managed-agents").json()
-        if agent["id"] == "order-support-agent"
+        if agent["id"] == "support-agent"
     )
-    assert "check-inventory" in target["tool_ids"]
-    assert "check_inventory" in target["enabled_tools"]
+    assert "lookup-invoice" in target["tool_ids"]
+    assert "lookup_invoice" in target["enabled_tools"]
     attached = next(
         tool
         for tool in target["attached_tools"]
-        if tool["name"] == "check_inventory"
+        if tool["name"] == "lookup_invoice"
     )
     assert attached["provider"] == "manager_runtime"
-    assert attached["tool_id"] == "check-inventory"
+    assert attached["tool_id"] == "lookup-invoice"
 
 
 def test_repeat_build_attaches_once_then_reuses_without_regeneration(client):
     prompt = (
-        "Build a tool that checks an order shipment status and summarizes "
-        "any delays."
+        "Build a finance tool that checks invoice status and summarizes "
+        "payment risk."
     )
     first = client.post(
         "/api/builds",
         json={
             "prompt": prompt,
-            "agent_id": "logistics-agent",
+            "agent_id": "coding-agent",
             "deploy": True,
         },
     ).json()
     assert first["decision"] == "build"
-    assert first["attached_agent_ids"] == ["logistics-agent"]
+    assert first["attached_agent_ids"] == ["coding-agent"]
 
     second = client.post(
         "/api/builds",
         json={
             "prompt": prompt,
-            "agent_id": "order-support-agent",
+            "agent_id": "support-agent",
             "deploy": True,
         },
     ).json()
     assert second["decision"] == "attach"
-    assert second["matched_tool_id"] == "order_status_summary"
+    assert second["matched_tool_id"] == "invoice_status_summary"
     assert second["source_code"] is None
-    assert second["attached_agent_ids"] == ["order-support-agent"]
+    assert second["attached_agent_ids"] == ["support-agent"]
 
     third = client.post(
         "/api/builds",
         json={
             "prompt": prompt,
-            "agent_id": "order-support-agent",
+            "agent_id": "support-agent",
             "deploy": True,
         },
     ).json()
@@ -172,29 +189,29 @@ def test_repeat_build_attaches_once_then_reuses_without_regeneration(client):
     assert "already has" in third["decision_reason"]
 
     tools = client.get("/api/overview").json()["architecture"]["tools"]
-    assert [tool["id"] for tool in tools].count("order_status_summary") == 1
+    assert [tool["id"] for tool in tools].count("invoice_status_summary") == 1
 
     rediscovered = client.post(
-        "/api/managed-agents/order-support-agent/discover",
+        "/api/managed-agents/support-agent/discover",
         json={},
     ).json()
     discovered_names = [
         tool["name"] for tool in rediscovered["mcp_tools"]
     ]
-    assert discovered_names.count("order_status_summary") == 1
-    assert "order_status_summary" in rediscovered["enabled_tools"]
+    assert discovered_names.count("invoice_status_summary") == 1
+    assert "invoice_status_summary" in rediscovered["enabled_tools"]
 
     import backend.app.dependencies as dependencies
 
     tools_file = (
         dependencies.store.path.parent
         / "managed_workspaces"
-        / "order-support-agent"
+        / "support-agent"
         / "tools.json"
     )
     contents = tools_file.read_text(encoding="utf-8")
     assert '"attached_tools"' in contents
-    assert '"order_status_summary"' in contents
+    assert '"invoice_status_summary"' in contents
 
 
 def test_build_blocks_target_tool_contract_conflict_without_registering(client):
@@ -205,10 +222,10 @@ def test_build_blocks_target_tool_contract_conflict_without_registering(client):
     target = next(
         agent
         for agent in architecture.agents
-        if agent.id == "order-support-agent"
+        if agent.id == "support-agent"
     )
     conflicting = MCPToolCapability(
-        name="order_status_summary",
+        name="invoice_status_summary",
         description="An unrelated pre-existing target capability.",
         input_schema={
             "type": "object",
@@ -231,11 +248,11 @@ def test_build_blocks_target_tool_contract_conflict_without_registering(client):
     response = client.post(
         "/api/builds",
         json={
-            "prompt": (
-                "Build a tool that checks an order shipment status and "
-                "summarizes any delays."
+                "prompt": (
+                    "Build a finance tool that checks invoice status and "
+                    "summarizes payment risk."
             ),
-            "agent_id": "order-support-agent",
+            "agent_id": "support-agent",
             "deploy": True,
         },
     )
@@ -247,12 +264,12 @@ def test_build_blocks_target_tool_contract_conflict_without_registering(client):
     assert "different input contract" in build["decision_reason"]
     assert build["stages"][1]["status"] == "failed"
     assert all(
-        tool["id"] != "order_status_summary"
+        tool["id"] != "invoice_status_summary"
         for tool in client.get("/api/overview").json()["architecture"]["tools"]
     )
     assert not (
         dependencies.runtime.generated_dir
-        / "order_status_summary.py"
+        / "invoice_status_summary.py"
     ).exists()
 
 
@@ -428,6 +445,8 @@ def test_managed_agent_configuration_can_be_edited_and_persisted(client):
             "enabled_tools": ["lookup_invoice"],
             "verification_mode": "strict",
             "memory_enabled": False,
+            "openai_model": "gpt-5.6-luna",
+            "openai_reasoning_effort": "max",
         },
     )
 
@@ -436,8 +455,38 @@ def test_managed_agent_configuration_can_be_edited_and_persisted(client):
     assert updated["name"] == "Premium Finance Analyst"
     assert updated["tool_policy"] == "approval"
     assert updated["memory_enabled"] is False
+    assert updated["openai_model"] == "gpt-5.6-luna"
+    assert updated["openai_reasoning_effort"] == "max"
     persisted = client.get("/api/managed-agents").json()[0]
     assert persisted["instructions"].startswith("Use current invoice data")
+    assert persisted["openai_model"] == "gpt-5.6-luna"
+
+    invalid = client.patch(
+        f"/api/managed-agents/{current['id']}",
+        json={
+            **{
+                key: value
+                for key, value in {
+                    "name": updated["name"],
+                    "description": updated["description"],
+                    "owner": updated["owner"],
+                    "mcp_endpoint": updated["mcp_endpoint"],
+                    "instructions": updated["instructions"],
+                    "features": updated["features"],
+                    "response_style": updated["response_style"],
+                    "tool_policy": updated["tool_policy"],
+                    "enabled_tools": updated["enabled_tools"],
+                    "verification_mode": updated[
+                        "verification_mode"
+                    ],
+                    "memory_enabled": updated["memory_enabled"],
+                }.items()
+            },
+            "openai_model": "not-a-real-model",
+            "openai_reasoning_effort": "extreme",
+        },
+    )
+    assert invalid.status_code == 422
 
 
 def test_manager_chat_selects_tools_stages_and_applies_agent_change(client):

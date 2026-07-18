@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.app.api.routes import router as api_router
 from backend.app.dependencies import (
     agent_process_manager,
+    internal_mcp_client,
     managed_workspace,
     monitoring_agent,
     settings,
@@ -52,6 +53,7 @@ app.add_middleware(
 )
 app.include_router(api_router)
 app.include_router(mcp_router)
+internal_mcp_client.bind(app)
 
 
 @app.get("/", include_in_schema=False)

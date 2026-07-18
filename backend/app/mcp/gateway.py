@@ -10,6 +10,7 @@ from backend.app.core.models import JsonRpcRequest, ToolRecord
 from backend.app.dependencies import (
     architecture_agent,
     developer_agent,
+    managed_agent_operator,
     managed_workspace,
     monitoring_agent,
     store,
@@ -35,6 +36,60 @@ MCP_TOOLS = {
     ],
     "monitoring": [
         {"name": "monitoring.health", "description": "Probe registered tools and endpoints.", "inputSchema": {"type": "object", "properties": {}}},
+    ],
+    "runtime": [
+        {
+            "name": "runtime.status",
+            "description": "Return the selected managed agent's process, workspace, endpoint, and discovered-tool status.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["agent_id"],
+                "properties": {"agent_id": {"type": "string"}},
+            },
+        },
+        {
+            "name": "runtime.start",
+            "description": "Start an imported agent using only its saved run command, then wait for and discover its MCP endpoint.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["agent_id"],
+                "properties": {"agent_id": {"type": "string"}},
+            },
+        },
+        {
+            "name": "runtime.stop",
+            "description": "Stop the selected imported agent's managed process group.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["agent_id"],
+                "properties": {"agent_id": {"type": "string"}},
+            },
+        },
+        {
+            "name": "runtime.discover",
+            "description": "Connect to the selected agent's MCP endpoint and refresh its real advertised tools.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["agent_id"],
+                "properties": {"agent_id": {"type": "string"}},
+            },
+        },
+        {
+            "name": "runtime.call_tool",
+            "description": "Call one enabled tool exposed by the selected managed agent and return its real output.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["agent_id", "tool_name", "arguments"],
+                "properties": {
+                    "agent_id": {"type": "string"},
+                    "tool_name": {"type": "string"},
+                    "arguments": {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                },
+            },
+        },
     ],
 }
 
@@ -85,6 +140,31 @@ async def _mcp_call(server_id: str, params: dict[str, Any]) -> dict[str, Any]:
         content = [check.model_dump() for check in checks]
     elif server_id == "monitoring" and name == "monitoring.health":
         content = [item.model_dump() for item in await monitoring_agent.check(architecture)]
+    elif server_id == "runtime" and name == "runtime.status":
+        content = managed_agent_operator.status(
+            str(arguments.get("agent_id", ""))
+        )
+    elif server_id == "runtime" and name == "runtime.start":
+        content = await managed_agent_operator.start(
+            str(arguments.get("agent_id", ""))
+        )
+    elif server_id == "runtime" and name == "runtime.stop":
+        content = managed_agent_operator.stop(
+            str(arguments.get("agent_id", ""))
+        )
+    elif server_id == "runtime" and name == "runtime.discover":
+        content = await managed_agent_operator.discover(
+            str(arguments.get("agent_id", ""))
+        )
+    elif server_id == "runtime" and name == "runtime.call_tool":
+        tool_arguments = arguments.get("arguments", {})
+        if not isinstance(tool_arguments, dict):
+            raise ValueError("Tool arguments must be an object")
+        content = await managed_agent_operator.call_tool(
+            str(arguments.get("agent_id", "")),
+            str(arguments.get("tool_name", "")),
+            tool_arguments,
+        )
     else:
         raise ValueError(f"Unknown tool {name!r} for server {server_id!r}")
     text = content if isinstance(content, str) else json.dumps(content, indent=2)

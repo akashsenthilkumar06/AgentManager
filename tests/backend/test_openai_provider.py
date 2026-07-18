@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import httpx
 
 import backend.app.dependencies as dependencies
 from backend.app.config import Settings
+from backend.app.infrastructure.openai_manager import OpenAIManagerLoop
 from backend.app.infrastructure.openai_provider import OpenAIProvider
 
 
@@ -88,8 +90,6 @@ def test_provider_applies_auth_defaults_and_records_readiness():
         transport=httpx.MockTransport(handler),
     )
 
-    import asyncio
-
     result = asyncio.run(provider.test_connection())
 
     assert result["status"] == "connected"
@@ -117,6 +117,65 @@ def test_provider_treats_example_placeholder_as_unconfigured():
 
     assert provider.configured is False
     assert provider.status()["status"] == "not_configured"
+
+
+def test_manager_loop_uses_agent_model_and_reasoning_override():
+    requests: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "model": "gpt-5.6-sol",
+                "output_text": "Manager completed the requested analysis.",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    "Manager completed the requested analysis."
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    provider = OpenAIProvider(
+        "test-secret-key",
+        "gpt-5.6-terra",
+        "https://api.openai.com/v1",
+        reasoning_effort="low",
+        max_retries=0,
+        transport=httpx.MockTransport(handler),
+    )
+    loop = OpenAIManagerLoop(provider)
+
+    async def execute(_name: str, _arguments: dict) -> dict:
+        return {}
+
+    result = asyncio.run(
+        loop.run(
+            "Inspect this managed agent.",
+            {
+                "id": "agent-1",
+                "openai_model": "gpt-5.6-sol",
+                "openai_reasoning_effort": "xhigh",
+            },
+            execute,
+        )
+    )
+
+    assert result is not None
+    assert result.provider == "openai:gpt-5.6-sol"
+    assert len(requests) == 1
+    assert requests[0]["model"] == "gpt-5.6-sol"
+    assert requests[0]["reasoning"] == {"effort": "xhigh"}
 
 
 def test_openai_status_and_test_endpoints_are_explicit(

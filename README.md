@@ -17,7 +17,7 @@ reconciliation, and measured before/after evidence.
 - Live architecture index seeded with agents, tools, endpoints, and data sources
 - Relevance-ranked discovery of reusable system components
 - Optional OpenAI Responses API routing with a deterministic no-key fallback
-- Safe, inspectable Python tool generation for order-status and inventory-risk workflows
+- Safe, inspectable Python tool generation for supported architecture-dependent workflows
 - Static AST policy, dependency, JSON-schema, runtime, and output-contract validation
 - Registration into a persistent JSON metadata store
 - Continuous representative-input health probes
@@ -30,6 +30,8 @@ reconciliation, and measured before/after evidence.
 - Persistent, agent-scoped conversation history
 - Conversational client-agent editing through the Manager Agent
 - OpenAI Responses API tool-calling loop when `OPENAI_API_KEY` is configured
+- Per-agent OpenAI Sol, Terra, or Luna model selection and compatible
+  reasoning-effort overrides, with application-default inheritance
 - Deterministic offline orchestration through the same specialist-tool sequence
 - Per-client local workspace sectors with `agent.json`, `instructions.md`, and `tools.json`
 - Managed-agent directory import with project metadata, instruction, language,
@@ -38,6 +40,12 @@ reconciliation, and measured before/after evidence.
   into Manager workspace inspection
 - Explicit start, stop, status, and captured-log controls for an imported
   agent's configured local run command
+- Manager-driven runtime operation through a real internal MCP handshake:
+  scoped status, saved-command launch, endpoint readiness, capability
+  discovery, live tool calls, provenance capture, and process shutdown
+- Expandable execution receipts containing workspace scope, process PID and
+  command, discovered server/tools, remote endpoint, tool arguments/output,
+  and live source/proof fields
 - User-selectable Review and Auto write modes
 - Focused or full agent-context import for each request
 - Per-message tool traces and acceptance-criteria-based output verification
@@ -60,6 +68,7 @@ flowchart LR
     AM --> WS["Workspace MCP"]
     AM --> DS["Developer specialist"]
     AM --> VS["Validation specialist"]
+    AM --> RT["Agent Runtime MCP"]
     WS --> MA["Selected client agent"]
     DS --> MA
     VS --> EH["Diff, evaluation, and edit history"]
@@ -79,7 +88,9 @@ flowchart LR
     AS --> FF["Autonomous findings feed"]
     MH --> FF
     IA["Imported local agent directory"] --> WS
-    IA --> PR["Explicit process runner"]
+    RT --> PR["Explicit process runner"]
+    PR --> EMCP["Independent agent MCP endpoint"]
+    RT --> EMCP
     BM["Paired benchmark runner"] --> B0["Original configuration"]
     BM --> B1["Manager-enhanced configuration"]
     B0 --> BE["Observed tool evidence"]
@@ -157,14 +168,23 @@ cp .env.example .env
 make dev
 ```
 
-The default model is `gpt-5.6-terra`, the balanced current GPT-5.6 tier for
-this interactive tool-using workload. `OPENAI_REASONING_EFFORT=low` keeps
-ordinary loops responsive; both are configurable. Optional
+The application-wide default model is `gpt-5.6-terra`, the balanced current
+GPT-5.6 tier for this interactive tool-using workload.
+`OPENAI_REASONING_EFFORT=low` keeps ordinary loops responsive. Optional
 `OPENAI_PROJECT_ID` and `OPENAI_ORGANIZATION_ID` values add the corresponding
 request headers when a key needs explicit billing attribution. All OpenAI
 requests remain server-side, use the Responses API, default to `store=false`,
 apply bounded output tokens and retries, and preserve visible local fallback
 behavior.
+
+Each managed agent can inherit those defaults or choose its own GPT-5.6 Sol,
+Terra, or Luna model and reasoning effort from **Managed agents → agent →
+Overview → OpenAI model**. These settings control both the Manager's OpenAI
+orchestration for that agent and the Manager-hosted live Responses API loop in
+**Workspace → Test client**; they do not silently reconfigure the internal
+model of a separately hosted agent. Every successful live Test response
+includes its effective model and reasoning effort in the verification
+evidence. Local and fallback demo conversations do not call OpenAI.
 
 After startup, open **System health → OpenAI Responses API → Test connection**.
 This explicit button sends one small readiness request and reports the actual
@@ -212,7 +232,28 @@ The current source connection is read-only: the Manager can inspect project
 files and edit the managed agent's own configuration/instructions, but it does
 not silently rewrite arbitrary imported source. `.env` files, credentials,
 private keys, Git internals, dependency directories, and build output remain
-excluded.
+excluded. Symlinks that resolve outside the imported root are rejected.
+Managed subprocesses inherit normal runtime settings such as `PATH`, but the
+launcher removes API-key, token, password, credential, private-key, and
+secret-like control-plane environment variables. An external agent should load
+its own credentials from its own environment or excluded local `.env`.
+
+The conversational Manager can operate the imported runtime from **Workspace →
+Manager**. Select **Auto** permission and ask, for example:
+
+```text
+Start this agent, discover its tools, and call support.lookup_ticket
+for ticket TCK-9001.
+```
+
+The Manager calls `/mcp/runtime` using `initialize`, `tools/list`, and
+`tools/call`. `runtime.start` executes only the run command already saved on
+the imported agent, waits for its configured MCP endpoint, and refreshes the
+advertised tools. The execution-evidence disclosure records the MCP gateway
+receipt, process state/PID, read-only workspace summary, endpoint/server name,
+discovered tools, and any remote tool output. Starting, stopping, and tool
+execution require **Auto**; Review mode remains read-only and records a failed
+permission receipt instead of mutating runtime state.
 
 ## Paired benchmarks
 
@@ -299,7 +340,7 @@ contain.
 
    Those source and proof values only exist in the separate server's tool
    output, so together with the execution receipt they distinguish the live
-   path from the built-in order, shipment, and inventory fixtures.
+   path from the built-in finance, coding, and support fixtures.
 
 7. To verify that fallback cannot be hidden, stop the main app, unset
    `OPENAI_API_KEY`, restart it, and send another Test-client message to the
@@ -327,21 +368,22 @@ only repositories the Manager is authorized to inspect.
 
 ## Demo script
 
-1. In Workspace, select the Logistics Agent and keep Manager mode active.
-2. Choose **Review** permission mode and ask the Manager to make the agent verify delivery promises against carrier evidence.
+1. In Workspace, select the Coding Agent and keep Manager mode active.
+2. Choose **Review** permission mode and ask the Manager to verify release recommendations against repository and test evidence.
 3. Show the Architecture, Workspace, Developer, and Validation route in Live work.
 4. Expand the proposed instructions diff and apply the reviewed change.
-5. Switch to **Test client**, ask “Where is ORD-1042 and is it delayed?”, and inspect its grounded output.
+5. Switch to **Test client**, ask about `REPO-1` release risk, and inspect its grounded output.
 6. Switch the Manager to **Auto** to demonstrate autonomous validated writes.
 7. Return to the client agent or Activity page to review its conversation and tool history.
 
-The alternate Inventory risk prompt demonstrates routing to a second constrained capability and supports the example SKU `SKU-BLU-07` as an out-of-stock result.
+The Finance Analyst and Support Agent provide additional seeded tool paths for
+invoice and ticket workflows.
 
 ## API
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/overview` | Architecture, counts, MCP services, and recent builds |
+| `GET` | `/api/overview` | Architecture, activity, OpenAI status/model catalog, and recent work |
 | `GET` | `/api/openai/status` | Return secret-free OpenAI configuration and last-request status |
 | `POST` | `/api/openai/test` | Send one small Responses API readiness request |
 | `POST` | `/api/builds` | Run the full build pipeline |
@@ -358,7 +400,7 @@ The alternate Inventory risk prompt demonstrates routing to a second constrained
 | `POST` | `/api/managed-agents/{agent_id}/process/start` | Start an imported agent's configured command |
 | `POST` | `/api/managed-agents/{agent_id}/process/stop` | Stop the imported agent process group |
 | `GET` | `/api/manager/conversations` | Return Manager work history for a selected client agent |
-| `POST` | `/api/manager/message` | Run the Manager tool-selection and edit loop |
+| `POST` | `/api/manager/message` | Run the Manager edit or managed-agent runtime-operation loop |
 | `POST` | `/api/manager/conversations/{conversation_id}/apply` | Apply reviewed staged changes |
 | `GET` | `/api/conversations` | Return all conversations or filter them by agent |
 | `GET` | `/api/conversations/{conversation_id}` | Return one complete conversation |
@@ -386,6 +428,15 @@ curl -s http://localhost:8000/mcp/architecture \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
+The Runtime MCP server advertises `runtime.status`, `runtime.start`,
+`runtime.stop`, `runtime.discover`, and `runtime.call_tool`:
+
+```bash
+curl -s http://localhost:8000/mcp/runtime \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
 ## Verification
 
 ```bash
@@ -397,9 +448,12 @@ cd frontend && npm run build
 
 The tests cover agent conversations, context import, imported directory
 inspection and process control, paired benchmark parity/uplift evidence, tool
-traces, output verification, the complete order and inventory pipelines, live
+traces, output verification, build/reuse pipelines, live
 execution, continuous reconciliation, request validation, and MCP
-discovery/calling.
+discovery/calling. `tests/backend/test_manager_runtime.py` launches a separate
+HTTP agent process and proves the Manager can read its scoped source, complete
+the Runtime MCP handshake, start it, discover its tool, execute it with
+distinctive live provenance, stop it, and enforce Review/Auto permission.
 
 ## Security posture and MVP boundaries
 
@@ -445,12 +499,15 @@ backend/
       gateway.py              MCP JSON-RPC transport
     core/
       models.py               Shared domain and API contracts
+      openai_models.py        Approved model and reasoning-effort catalog
       seed.py                 Demo enterprise architecture
       storage.py              Architecture, conversation, and build registry
     infrastructure/
       llm_router.py           Optional OpenAI routing adapter
       live_conversation.py    OpenAI reasoning loop over live remote MCP tools
       mcp_client.py           Managed-agent MCP discovery and tool-call client
+      internal_mcp_client.py  Real JSON-RPC client for Manager specialist calls
+      managed_agent_operator.py  Run/discover/call boundary for managed agents
       managed_workspace.py    Per-client editable local file sectors
       agent_process.py        Explicit imported-agent process-group controls
       openai_manager.py       OpenAI Responses API function-calling loop
@@ -468,7 +525,7 @@ external_agent/
   README.md                   Server setup and direct protocol checks
 
 tests/
-  backend/                    End-to-end API, live MCP, and fallback tests
+  backend/                    End-to-end API, live MCP, runtime, and fallback tests
 ```
 
 ### Agent ownership
@@ -476,7 +533,7 @@ tests/
 | Agent | File | Responsibility |
 |---|---|---|
 | Manager | `backend/app/agents/manager_agent.py` | Coordinates the complete build lifecycle |
-| Agentic Manager | `backend/app/agents/agentic_manager.py` | Selects specialists and edits a client agent conversationally |
+| Agentic Manager | `backend/app/agents/agentic_manager.py` | Selects specialists, edits configuration, and operates imported agent runtimes conversationally |
 | Benchmark | `backend/app/agents/benchmark_agent.py` | Runs identical real capability probes against original and managed configurations |
 | Import | `backend/app/agents/import_agent.py` | Detects, connects, and optionally launches a local agent project |
 | Conversation | `backend/app/agents/conversation_agent.py` | Runs scoped agent turns and verifies grounded outputs |

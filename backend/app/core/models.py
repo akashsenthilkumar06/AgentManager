@@ -7,6 +7,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from backend.app.core.openai_models import (
+    OPENAI_MODEL_IDS,
+    OPENAI_REASONING_EFFORTS,
+)
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -33,6 +38,8 @@ class AgentRecord(BaseModel):
     enabled_tools: list[str] = Field(default_factory=list)
     verification_mode: Literal["strict", "balanced", "advisory"] = "balanced"
     memory_enabled: bool = True
+    openai_model: str | None = None
+    openai_reasoning_effort: str | None = None
     imported: bool = False
     workspace_id: str | None = None
     workspace_root: str | None = None
@@ -52,6 +59,8 @@ class AgentUpdateRequest(BaseModel):
     enabled_tools: list[str] = Field(default_factory=list)
     verification_mode: Literal["strict", "balanced", "advisory"] = "balanced"
     memory_enabled: bool = True
+    openai_model: str | None = None
+    openai_reasoning_effort: str | None = None
 
     @field_validator("name", "description", "owner", "instructions")
     @classmethod
@@ -72,6 +81,35 @@ class AgentUpdateRequest(BaseModel):
     @classmethod
     def normalize_lists(cls, values: list[str]) -> list[str]:
         return list(dict.fromkeys(value.strip() for value in values if value.strip()))
+
+    @field_validator("openai_model")
+    @classmethod
+    def validate_openai_model(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        model = value.strip()
+        if model not in OPENAI_MODEL_IDS:
+            raise ValueError(
+                "OpenAI model must be gpt-5.6-sol, gpt-5.6-terra, "
+                "or gpt-5.6-luna"
+            )
+        return model
+
+    @field_validator("openai_reasoning_effort")
+    @classmethod
+    def validate_openai_reasoning_effort(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None or not value.strip():
+            return None
+        effort = value.strip()
+        if effort not in OPENAI_REASONING_EFFORTS:
+            raise ValueError(
+                "OpenAI reasoning effort must be none, low, medium, high, "
+                "xhigh, or max"
+            )
+        return effort
 
 
 class AgentImportRequest(BaseModel):
@@ -477,12 +515,20 @@ class AgentChatRequest(BaseModel):
 
 class ManagerAction(BaseModel):
     id: str
-    server: Literal["architecture", "workspace", "developer", "validation", "monitoring"]
+    server: Literal[
+        "architecture",
+        "workspace",
+        "developer",
+        "validation",
+        "monitoring",
+        "runtime",
+    ]
     tool: str
     status: Literal["running", "passed", "failed"]
     title: str
     detail: str
     duration_ms: int = 0
+    evidence: dict[str, Any] = Field(default_factory=dict)
 
 
 class ManagerChange(BaseModel):

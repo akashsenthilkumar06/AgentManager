@@ -105,6 +105,15 @@ class MockSystem:
         if operation == "check_inventory":
             key = str(payload.get("sku", "")).upper()
             return await self.get("/mock/inventory/" + key)
+        if operation == "lookup_invoice":
+            key = str(payload.get("invoice_id", "")).upper()
+            return await self.get("/mock/invoices/" + key)
+        if operation == "review_code":
+            key = str(payload.get("repo_id", "")).upper()
+            return await self.get("/mock/codebase/" + key)
+        if operation == "lookup_ticket":
+            key = str(payload.get("ticket_id", "")).upper()
+            return await self.get("/mock/tickets/" + key)
         raise ValueError("Tool has no executable operation")
 
     async def get(self, path: str) -> dict[str, Any]:

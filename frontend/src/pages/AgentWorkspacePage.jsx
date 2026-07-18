@@ -9,7 +9,7 @@ const TABS = [
   ["tools", "Tool workspaces"],
 ];
 
-function updatePayload(agent, endpoint) {
+function updatePayload(agent, endpoint, overrides = {}) {
   return {
     name: agent.name,
     description: agent.description,
@@ -22,7 +22,117 @@ function updatePayload(agent, endpoint) {
     enabled_tools: agent.enabled_tools,
     verification_mode: agent.verification_mode,
     memory_enabled: agent.memory_enabled,
+    openai_model: agent.openai_model || null,
+    openai_reasoning_effort: agent.openai_reasoning_effort || null,
+    ...overrides,
   };
+}
+
+function ModelSettingsEditor({
+  agent,
+  openai,
+  onRefresh,
+  notify,
+}) {
+  const [model, setModel] = useState(agent.openai_model || "");
+  const [reasoning, setReasoning] = useState(
+    agent.openai_reasoning_effort || "",
+  );
+  const [saving, setSaving] = useState(false);
+  const options = openai?.model_options || [];
+  const effectiveModel = model || openai?.model || "application default";
+  const selected = options.find(
+    (option) => option.id === effectiveModel,
+  );
+  const reasoningOptions = selected?.reasoning_efforts || [];
+  const effectiveReasoning = reasoning
+    || openai?.reasoning_effort
+    || "provider default";
+
+  function chooseModel(value) {
+    setModel(value);
+    const option = options.find(
+      (item) => item.id === (value || openai?.model),
+    );
+    if (
+      reasoning
+      && option
+      && !option.reasoning_efforts.includes(reasoning)
+    ) {
+      setReasoning("");
+    }
+  }
+
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await api(`/api/managed-agents/${agent.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(
+          updatePayload(agent, agent.mcp_endpoint || "", {
+            openai_model: model || null,
+            openai_reasoning_effort: reasoning || null,
+          }),
+        ),
+      });
+      await onRefresh();
+      notify(`Model settings saved for ${agent.name}.`);
+    } catch (error) {
+      notify(error.message, true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="model-settings-editor">
+      <div className="model-settings-heading">
+        <div>
+          <p className="eyebrow">LIVE REASONING</p>
+          <h2>OpenAI model</h2>
+          <p>Choose the model and reasoning effort used when Manager or Test mode performs OpenAI-backed work for this agent.</p>
+        </div>
+        <span><small>Effective model</small><strong>{effectiveModel}</strong></span>
+      </div>
+      <div className="model-settings-controls">
+        <label>
+          <span>Model</span>
+          <select value={model} onChange={(event) => chooseModel(event.target.value)}>
+            <option value="">Inherit app default ({openai?.model || "configured model"})</option>
+            {options.map((option) => (
+              <option value={option.id} key={option.id}>
+                {option.label} · {option.role}
+              </option>
+            ))}
+          </select>
+          <small>{selected?.description || "Uses the model configured by OPENAI_MODEL."}</small>
+        </label>
+        <label>
+          <span>Reasoning effort</span>
+          <select
+            value={reasoning}
+            onChange={(event) => setReasoning(event.target.value)}
+          >
+            <option value="">Inherit app default ({openai?.reasoning_effort || "provider default"})</option>
+            {reasoningOptions.map((effort) => (
+              <option value={effort} key={effort}>
+                {effort === "none" ? "None" : effort.charAt(0).toUpperCase() + effort.slice(1)}
+              </option>
+            ))}
+          </select>
+          <small>Higher effort can improve difficult work, but usually adds latency and token usage.</small>
+        </label>
+        <button className="primary-button" onClick={save} disabled={saving}>
+          {saving ? "Saving…" : "Save model"}
+        </button>
+      </div>
+      <div className="model-effective-note">
+        <i />
+        OpenAI-backed runs use <strong>{effectiveModel}</strong> with <strong>{effectiveReasoning}</strong> reasoning; live Test responses record both in their evidence.
+      </div>
+    </section>
+  );
 }
 
 function MCPConnectionEditor({
@@ -217,6 +327,7 @@ function ImportedRuntimePanel({ agent, onRefresh, notify }) {
 
 export default function AgentWorkspacePage({
   agents,
+  openai,
   onRefresh,
   notify,
 }) {
@@ -317,6 +428,13 @@ export default function AgentWorkspacePage({
             <MCPConnectionEditor
               key={agent.id}
               agent={agent}
+              onRefresh={onRefresh}
+              notify={notify}
+            />
+            <ModelSettingsEditor
+              key={`model-${agent.id}`}
+              agent={agent}
+              openai={openai}
               onRefresh={onRefresh}
               notify={notify}
             />

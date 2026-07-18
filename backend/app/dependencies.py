@@ -18,7 +18,11 @@ from backend.app.core.models import ToolRecord
 from backend.app.core.storage import JsonStore
 from backend.app.infrastructure.llm_router import LLMRouter
 from backend.app.infrastructure.agent_process import AgentProcessManager
+from backend.app.infrastructure.internal_mcp_client import InternalMCPClient
 from backend.app.infrastructure.live_conversation import LiveConversationRunner
+from backend.app.infrastructure.managed_agent_operator import (
+    ManagedAgentOperator,
+)
 from backend.app.infrastructure.managed_workspace import ManagedAgentWorkspace
 from backend.app.infrastructure.mcp_client import ManagedAgentMCPClient
 from backend.app.infrastructure.mock_system import MockSystem
@@ -36,6 +40,7 @@ mcp_client = ManagedAgentMCPClient()
 workspace_access = WorkspaceAccess(settings.workspace_root)
 managed_workspace = ManagedAgentWorkspace(store, workspace_access)
 agent_process_manager = AgentProcessManager()
+internal_mcp_client = InternalMCPClient()
 openai_provider = OpenAIProvider(
     settings.openai_api_key,
     settings.openai_model,
@@ -67,6 +72,15 @@ async def execute_registered_tool(
 
 
 architecture_agent = ArchitectureAgent(mcp_client)
+managed_agent_operator = ManagedAgentOperator(
+    store,
+    architecture_agent,
+    mcp_client,
+    agent_process_manager,
+    workspace_access,
+    managed_workspace,
+    execute_registered_tool,
+)
 import_agent = ImportAgent(
     store,
     architecture_agent,
@@ -115,4 +129,5 @@ agentic_manager = AgenticManager(
     architecture_agent,
     managed_workspace,
     openai_manager_loop,
+    internal_mcp_client,
 )

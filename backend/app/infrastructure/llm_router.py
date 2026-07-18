@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 
 from backend.app.core.models import ReuseCandidate
@@ -64,11 +65,14 @@ class LLMRouter:
     @staticmethod
     def _local_route(prompt: str) -> RouteDecision:
         lowered = prompt.lower()
-        if any(word in lowered for word in ("finance", "invoice", "billing", "payment")):
+        terms = set(re.findall(r"[a-z0-9]+", lowered))
+        if terms.intersection({"finance", "invoice", "billing", "payment"}):
             intent = "finance_review"
-        elif any(word in lowered for word in ("code", "repo", "review", "test", "bug", "build", "release")):
+        elif terms.intersection(
+            {"code", "repo", "repository", "review", "test", "bug", "release"}
+        ):
             intent = "code_review"
-        elif any(word in lowered for word in ("inventory", "stock", "sku", "availability")):
+        elif terms.intersection({"inventory", "stock", "sku", "availability"}):
             intent = "inventory_risk"
         else:
             intent = "order_status"
