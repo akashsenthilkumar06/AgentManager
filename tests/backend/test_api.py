@@ -87,6 +87,175 @@ def test_inventory_request_routes_to_inventory_tool(client):
     assert execution.json()["result"]["risk"] == "out_of_stock"
 
 
+def test_build_reuses_existing_fleet_tool_and_attaches_it_to_target(client):
+    before = client.get("/api/overview").json()["summary"]["counts"]["tools"]
+    response = client.post(
+        "/api/builds",
+        json={
+            "prompt": (
+                "Create a tool that checks inventory availability for a SKU"
+            ),
+            "agent_id": "order-support-agent",
+            "deploy": True,
+        },
+    )
+
+    assert response.status_code == 200
+    build = response.json()
+    assert build["status"] == "completed"
+    assert build["decision"] == "attach"
+    assert build["matched_tool_id"] == "check-inventory"
+    assert build["attached_agent_ids"] == ["order-support-agent"]
+    assert build["source_code"] is None
+    assert build["plan"]["fleet_preflight"]["relation"] == "equivalent"
+    assert build["plan"]["fleet_preflight"]["source_agent_ids"] == [
+        "catalog-agent"
+    ]
+    assert "avoids a duplicate" in build["decision_reason"]
+    assert client.get("/api/overview").json()["summary"]["counts"]["tools"] == before
+
+    target = next(
+        agent
+        for agent in client.get("/api/managed-agents").json()
+        if agent["id"] == "order-support-agent"
+    )
+    assert "check-inventory" in target["tool_ids"]
+    assert "check_inventory" in target["enabled_tools"]
+    attached = next(
+        tool
+        for tool in target["attached_tools"]
+        if tool["name"] == "check_inventory"
+    )
+    assert attached["provider"] == "manager_runtime"
+    assert attached["tool_id"] == "check-inventory"
+
+
+def test_repeat_build_attaches_once_then_reuses_without_regeneration(client):
+    prompt = (
+        "Build a tool that checks an order shipment status and summarizes "
+        "any delays."
+    )
+    first = client.post(
+        "/api/builds",
+        json={
+            "prompt": prompt,
+            "agent_id": "logistics-agent",
+            "deploy": True,
+        },
+    ).json()
+    assert first["decision"] == "build"
+    assert first["attached_agent_ids"] == ["logistics-agent"]
+
+    second = client.post(
+        "/api/builds",
+        json={
+            "prompt": prompt,
+            "agent_id": "order-support-agent",
+            "deploy": True,
+        },
+    ).json()
+    assert second["decision"] == "attach"
+    assert second["matched_tool_id"] == "order_status_summary"
+    assert second["source_code"] is None
+    assert second["attached_agent_ids"] == ["order-support-agent"]
+
+    third = client.post(
+        "/api/builds",
+        json={
+            "prompt": prompt,
+            "agent_id": "order-support-agent",
+            "deploy": True,
+        },
+    ).json()
+    assert third["decision"] == "reuse"
+    assert third["attached_agent_ids"] == []
+    assert "already has" in third["decision_reason"]
+
+    tools = client.get("/api/overview").json()["architecture"]["tools"]
+    assert [tool["id"] for tool in tools].count("order_status_summary") == 1
+
+    rediscovered = client.post(
+        "/api/managed-agents/order-support-agent/discover",
+        json={},
+    ).json()
+    discovered_names = [
+        tool["name"] for tool in rediscovered["mcp_tools"]
+    ]
+    assert discovered_names.count("order_status_summary") == 1
+    assert "order_status_summary" in rediscovered["enabled_tools"]
+
+    import backend.app.dependencies as dependencies
+
+    tools_file = (
+        dependencies.store.path.parent
+        / "managed_workspaces"
+        / "order-support-agent"
+        / "tools.json"
+    )
+    contents = tools_file.read_text(encoding="utf-8")
+    assert '"attached_tools"' in contents
+    assert '"order_status_summary"' in contents
+
+
+def test_build_blocks_target_tool_contract_conflict_without_registering(client):
+    import backend.app.dependencies as dependencies
+    from backend.app.core.models import MCPToolCapability
+
+    architecture = dependencies.store.architecture()
+    target = next(
+        agent
+        for agent in architecture.agents
+        if agent.id == "order-support-agent"
+    )
+    conflicting = MCPToolCapability(
+        name="order_status_summary",
+        description="An unrelated pre-existing target capability.",
+        input_schema={
+            "type": "object",
+            "required": ["sku"],
+            "properties": {"sku": {"type": "string"}},
+        },
+        provider="agent_mcp",
+        provider_endpoint="https://existing-agent.invalid/mcp",
+    )
+    dependencies.store.update_agent(
+        target.model_copy(
+            update={
+                "attached_tools": [conflicting],
+                "mcp_tools": [conflicting],
+                "enabled_tools": ["order_status_summary"],
+            }
+        )
+    )
+
+    response = client.post(
+        "/api/builds",
+        json={
+            "prompt": (
+                "Build a tool that checks an order shipment status and "
+                "summarizes any delays."
+            ),
+            "agent_id": "order-support-agent",
+            "deploy": True,
+        },
+    )
+
+    assert response.status_code == 200
+    build = response.json()
+    assert build["status"] == "failed"
+    assert build["decision"] == "conflict"
+    assert "different input contract" in build["decision_reason"]
+    assert build["stages"][1]["status"] == "failed"
+    assert all(
+        tool["id"] != "order_status_summary"
+        for tool in client.get("/api/overview").json()["architecture"]["tools"]
+    )
+    assert not (
+        dependencies.runtime.generated_dir
+        / "order_status_summary.py"
+    ).exists()
+
+
 def test_mcp_gateway_lists_and_calls_architecture_tools(client):
     listed = client.post(
         "/mcp/architecture",

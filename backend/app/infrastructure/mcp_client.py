@@ -47,6 +47,8 @@ class ManagedAgentMCPClient:
                 name=available[tool_id].name,
                 description=available[tool_id].description,
                 input_schema=available[tool_id].input_schema,
+                tool_id=available[tool_id].id,
+                provider="manager_runtime",
             )
             for tool_id in agent.tool_ids
             if tool_id in available
@@ -77,6 +79,8 @@ class ManagedAgentMCPClient:
                 name=str(item.get("name", "unnamed_tool")),
                 description=str(item.get("description", "")),
                 input_schema=item.get("inputSchema", {}),
+                provider="agent_mcp",
+                provider_endpoint=endpoint,
             )
             for item in tools_result.get("tools", [])
             if isinstance(item, dict)

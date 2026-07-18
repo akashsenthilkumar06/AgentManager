@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
+import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -129,6 +131,168 @@ class WorkspaceAccess:
         if not workspace_root.is_dir():
             raise NotADirectoryError(str(workspace_root))
         return workspace_root
+
+    def inspect_agent_project(
+        self,
+        root: Path,
+    ) -> dict[str, object]:
+        """Detect a local agent project's shape without reading secrets."""
+
+        workspace_root = self.validate_root(root)
+        summary = self.summary(workspace_root)
+        commands: list[str] = []
+        languages: set[str] = set()
+        indexed_files = 0
+        for path in workspace_root.rglob("*"):
+            if indexed_files >= 1000:
+                break
+            if not path.is_file() or not self._visible(
+                path,
+                workspace_root,
+            ) or path.suffix.lower() not in TEXT_SUFFIXES:
+                continue
+            indexed_files += 1
+            language = LANGUAGES.get(path.suffix.lower())
+            if language:
+                languages.add(language)
+
+        package_path = workspace_root / "package.json"
+        if package_path.is_file() and self._visible(
+            package_path,
+            workspace_root,
+        ):
+            try:
+                package = json.loads(
+                    package_path.read_text(encoding="utf-8")
+                )
+                scripts = package.get("scripts", {})
+                package_manager = (
+                    "pnpm"
+                    if (workspace_root / "pnpm-lock.yaml").exists()
+                    else (
+                        "yarn"
+                        if (workspace_root / "yarn.lock").exists()
+                        else "npm"
+                    )
+                )
+                for script in ("dev", "start", "serve"):
+                    if script not in scripts:
+                        continue
+                    if package_manager == "yarn":
+                        commands.append(f"yarn {script}")
+                    else:
+                        commands.append(
+                            f"{package_manager} run {script}"
+                        )
+            except (ValueError, OSError):
+                pass
+
+        makefile = workspace_root / "Makefile"
+        if makefile.is_file():
+            make_text = makefile.read_text(
+                encoding="utf-8",
+                errors="ignore",
+            )
+            for target in ("dev", "run", "start"):
+                if re.search(
+                    rf"(?m)^{re.escape(target)}\s*:",
+                    make_text,
+                ):
+                    commands.append(f"make {target}")
+
+        pyproject = workspace_root / "pyproject.toml"
+        if pyproject.is_file():
+            try:
+                parsed = tomllib.loads(
+                    pyproject.read_text(encoding="utf-8")
+                )
+                scripts = parsed.get("project", {}).get("scripts", {})
+                for target in list(scripts)[:3]:
+                    commands.append(target)
+            except (ValueError, OSError):
+                pass
+        for filename in ("main.py", "app.py", "server.py"):
+            if (workspace_root / filename).is_file():
+                commands.append(f"python {filename}")
+
+        readme = next(
+            (
+                path
+                for path in (
+                    workspace_root / "README.md",
+                    workspace_root / "README.txt",
+                    workspace_root / "readme.md",
+                )
+                if path.is_file()
+            ),
+            None,
+        )
+        description = ""
+        if readme:
+            content = readme.read_text(
+                encoding="utf-8",
+                errors="ignore",
+            )[:8000]
+            paragraphs = [
+                re.sub(r"[#*_`>\[\]]", "", paragraph).strip()
+                for paragraph in re.split(r"\n\s*\n", content)
+                if paragraph.strip()
+            ]
+            description = next(
+                (
+                    paragraph.replace("\n", " ")
+                    for paragraph in paragraphs
+                    if len(paragraph) >= 20
+                ),
+                "",
+            )[:500]
+
+        instructions = ""
+        for filename in (
+            "AGENTS.md",
+            "SYSTEM_PROMPT.md",
+            "system_prompt.txt",
+            "instructions.md",
+        ):
+            path = workspace_root / filename
+            if path.is_file() and self._visible(path, workspace_root):
+                instructions = path.read_text(
+                    encoding="utf-8",
+                    errors="ignore",
+                )[:4000].strip()
+                if instructions:
+                    break
+
+        detected_endpoint = None
+        for filename in ("agent.json", "mcp.json"):
+            path = workspace_root / filename
+            if not path.is_file():
+                continue
+            try:
+                configuration = json.loads(
+                    path.read_text(encoding="utf-8")
+                )
+            except (ValueError, OSError):
+                continue
+            candidate = configuration.get(
+                "mcp_endpoint",
+                configuration.get("endpoint"),
+            )
+            if isinstance(candidate, str) and candidate.startswith(
+                ("demo://", "http://", "https://")
+            ):
+                detected_endpoint = candidate
+                break
+
+        return {
+            **summary,
+            "indexed_files": indexed_files,
+            "languages": sorted(languages),
+            "detected_entrypoints": list(dict.fromkeys(commands))[:8],
+            "description": description,
+            "instructions": instructions,
+            "mcp_endpoint": detected_endpoint,
+        }
 
     def _workspace_root(self, root: Path | None) -> Path:
         return self.validate_root(root or self.root)

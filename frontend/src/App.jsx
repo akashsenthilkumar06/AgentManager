@@ -4,8 +4,8 @@ import { api } from "./api";
 import AppShell from "./layout/AppShell";
 import AgentsPage from "./pages/AgentsPage";
 import AgentWorkspacePage from "./pages/AgentWorkspacePage";
+import BenchmarksPage from "./pages/BenchmarksPage";
 import DashboardPage from "./pages/DashboardPage";
-import FilesPage from "./pages/FilesPage";
 import HealthPage from "./pages/HealthPage";
 import HistoryPage from "./pages/HistoryPage";
 import WorkspacePage from "./pages/WorkspacePage";
@@ -37,6 +37,15 @@ export default function App() {
     return () => { active = false; };
   }, [notify]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      api("/api/overview")
+        .then(setOverview)
+        .catch(() => {});
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   async function resetDemo() {
     if (!window.confirm("Reset the demo architecture and remove generated tools?")) return;
     try { await api("/api/reset", { method: "POST", body: "{}" }); await refresh(); notify("Demo workspace reset."); }
@@ -52,8 +61,9 @@ export default function App() {
         <Route path="/workspace" element={<WorkspacePage agents={overview.architecture.agents} onRefresh={refresh} notify={notify} />} />
         <Route path="/agents" element={<AgentsPage agents={overview.architecture.agents} conversations={overview.recent_conversations || []} onRefresh={refresh} notify={notify} />} />
         <Route path="/agents/:agentId" element={<AgentWorkspacePage agents={overview.architecture.agents} onRefresh={refresh} notify={notify} />} />
+        <Route path="/benchmarks" element={<BenchmarksPage agents={overview.architecture.agents} notify={notify} />} />
         <Route path="/architecture" element={<Navigate to="/agents" replace />} />
-        <Route path="/files" element={<FilesPage agents={overview.architecture.agents} notify={notify} />} />
+        <Route path="/files" element={<Navigate to="/agents" replace />} />
         <Route path="/health" element={<HealthPage health={health} architecture={overview.architecture} setHealth={setHealth} notify={notify} />} />
         <Route path="/history" element={<HistoryPage builds={overview.recent_builds} conversations={overview.recent_conversations || []} agents={overview.architecture.agents} />} />
         <Route path="*" element={<Navigate to="/" replace />} />

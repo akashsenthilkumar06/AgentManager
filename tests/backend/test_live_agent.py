@@ -189,6 +189,149 @@ def test_http_agent_without_llm_key_uses_visible_fallback(client, monkeypatch):
     )
 
 
+def test_generated_tool_is_attached_and_called_in_live_conversation(
+    client,
+    monkeypatch,
+):
+    transport = httpx.ASGITransport(app=external_agent_app)
+    monkeypatch.setattr(dependencies.mcp_client, "transport", transport)
+    monkeypatch.setattr(
+        dependencies.live_conversation_runner,
+        "api_key",
+        "test-openai-key",
+    )
+
+    agent = client.get("/api/managed-agents").json()[0]
+    endpoint = "http://standalone-agent.test/mcp"
+    updated = client.patch(
+        f"/api/managed-agents/{agent['id']}",
+        json=_agent_update(agent, endpoint),
+    )
+    assert updated.status_code == 200
+    assert client.post(
+        f"/api/managed-agents/{agent['id']}/discover",
+        json={},
+    ).status_code == 200
+
+    build = client.post(
+        "/api/builds",
+        json={
+            "prompt": (
+                "Build a tool that checks an order shipment status and "
+                "summarizes any delays."
+            ),
+            "agent_id": agent["id"],
+            "deploy": True,
+        },
+    )
+    assert build.status_code == 200
+    build_body = build.json()
+    assert build_body["decision"] == "build"
+    assert build_body["attached_agent_ids"] == [agent["id"]]
+
+    configured = next(
+        item
+        for item in client.get("/api/managed-agents").json()
+        if item["id"] == agent["id"]
+    )
+    attached = next(
+        tool
+        for tool in configured["attached_tools"]
+        if tool["name"] == "order_status_summary"
+    )
+    assert attached["provider"] == "manager_runtime"
+    assert attached["tool_id"] == "order_status_summary"
+    assert "order_status_summary" in configured["enabled_tools"]
+    assert "order_status_summary" in {
+        tool["name"] for tool in configured["mcp_tools"]
+    }
+
+    responses: list[dict] = []
+
+    async def fake_openai_response(_client, body):
+        responses.append(body)
+        if len(responses) == 1:
+            advertised_names = {tool["name"] for tool in body["tools"]}
+            assert "order_status_summary" in advertised_names
+            return {
+                "output": [
+                    {
+                        "type": "function_call",
+                        "id": "function_generated_1",
+                        "call_id": "call_generated_1",
+                        "name": "order_status_summary",
+                        "arguments": json.dumps(
+                            {"order_id": "ORD-1042"}
+                        ),
+                    },
+                ]
+            }
+
+        tool_outputs = [
+            item
+            for item in body["input"]
+            if item.get("type") == "function_call_output"
+        ]
+        assert len(tool_outputs) == 1
+        live_result = json.loads(tool_outputs[0]["output"])
+        assert live_result["delayed"] is True
+        assert live_result["delay_hours"] == 14
+        assert "Weather delay" in live_result["summary"]
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "id": "message_generated_1",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": (
+                                "ORD-1042 has a 14 hour weather delay, "
+                                "confirmed by the attached live tool."
+                            ),
+                        }
+                    ],
+                }
+            ],
+            "output_text": (
+                "ORD-1042 has a 14 hour weather delay, confirmed by the "
+                "attached live tool."
+            ),
+        }
+
+    monkeypatch.setattr(
+        dependencies.live_conversation_runner,
+        "_create_response",
+        fake_openai_response,
+    )
+    conversation = client.post(
+        "/api/conversations/message",
+        json={
+            "agent_id": agent["id"],
+            "message": "Summarize the status and delay for ORD-1042.",
+            "context_mode": "full",
+        },
+    )
+
+    assert conversation.status_code == 200
+    answer = conversation.json()["messages"][-1]
+    assert answer["execution_mode"] == "live"
+    assert answer["fallback_reason"] is None
+    assert answer["tool_calls"][0]["tool_name"] == "order_status_summary"
+    assert answer["tool_calls"][0]["tool_id"] == "order_status_summary"
+    assert answer["tool_calls"][0]["provider"] == "manager_runtime"
+    assert answer["tool_calls"][0]["endpoint"] == (
+        "local://registered-tools/order_status_summary"
+    )
+    assert answer["tool_calls"][0]["output"]["delay_hours"] == 14
+    assert any(
+        "via manager_runtime" in evidence
+        for evidence in answer["verification"]["evidence"]
+    )
+    assert len(responses) == 2
+
+
 def test_endpoint_validation_rejects_unsupported_schemes(client):
     agent = client.get("/api/managed-agents").json()[0]
     response = client.patch(

@@ -15,6 +15,7 @@ class Settings:
     openai_base_url: str
     frontend_origins: tuple[str, ...]
     workspace_root: Path
+    reconciliation_interval_seconds: float
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -38,4 +39,13 @@ class Settings:
                 if origin.strip()
             ),
             workspace_root=Path(os.getenv("AGENT_MANAGER_WORKSPACE_ROOT", str(project_root))).resolve(),
+            reconciliation_interval_seconds=max(
+                5.0,
+                float(
+                    os.getenv(
+                        "AGENT_MANAGER_RECONCILIATION_INTERVAL_SECONDS",
+                        "30",
+                    )
+                ),
+            ),
         )

@@ -144,6 +144,77 @@ function MCPConnectionEditor({
   );
 }
 
+function ImportedRuntimePanel({ agent, onRefresh, notify }) {
+  const [runtime, setRuntime] = useState(null);
+  const [command, setCommand] = useState(agent.run_command || "");
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    if (!agent.imported) return undefined;
+    let active = true;
+    api(`/api/managed-agents/${agent.id}/process`)
+      .then((result) => {
+        if (!active) return;
+        setRuntime(result);
+      })
+      .catch((error) => notify(error.message, true));
+    return () => { active = false; };
+  }, [agent.id, agent.imported, notify]);
+
+  useEffect(() => {
+    if (!agent.imported || runtime?.status !== "running") {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      api(`/api/managed-agents/${agent.id}/process`)
+        .then(setRuntime)
+        .catch(() => {});
+    }, 1800);
+    return () => window.clearInterval(timer);
+  }, [agent.id, agent.imported, runtime?.status]);
+
+  if (!agent.imported) return null;
+
+  async function start() {
+    if (!command.trim() || working) return;
+    setWorking(true);
+    try {
+      const result = await api(`/api/managed-agents/${agent.id}/process/start`, {
+        method: "POST",
+        body: JSON.stringify({ command }),
+      });
+      setRuntime(result);
+      await onRefresh();
+      notify(`${agent.name} started.`);
+    } catch (error) {
+      notify(error.message, true);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function stop() {
+    if (working) return;
+    setWorking(true);
+    try {
+      setRuntime(await api(`/api/managed-agents/${agent.id}/process/stop`, { method: "POST", body: "{}" }));
+      notify(`${agent.name} stopped.`);
+    } catch (error) {
+      notify(error.message, true);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return <section className="imported-runtime-panel">
+    <div className="runtime-panel-heading"><div><p className="eyebrow">CONNECTED LOCAL RUNTIME</p><h2>Source and process</h2><p>The Manager can search and read this directory as scoped context. Starting the runtime executes only the command shown below, directly in the imported directory.</p></div><span className={`runtime-state ${runtime?.status || "stopped"}`}><i />{runtime?.status || "stopped"}</span></div>
+    <div className="runtime-directory"><span>▱</span><div><strong>{agent.workspace_root}</strong><small>Connected source · secret and dependency paths excluded</small></div></div>
+    {agent.detected_entrypoints?.length > 0 && <div className="runtime-entrypoints"><span>Detected commands</span><div>{agent.detected_entrypoints.map((entrypoint) => <button key={entrypoint} onClick={() => setCommand(entrypoint)} className={command === entrypoint ? "active" : ""}>{entrypoint}</button>)}</div></div>}
+    <div className="runtime-command-row"><label><span>Run command</span><input value={command} onChange={(event) => setCommand(event.target.value)} placeholder="make dev" spellCheck="false" /></label>{runtime?.status === "running" ? <button className="runtime-stop-button" onClick={stop} disabled={working}>{working ? "Stopping…" : "Stop agent"}</button> : <button className="primary-button" onClick={start} disabled={working || !command.trim()}>{working ? "Starting…" : "Start agent"} <span>▶</span></button>}</div>
+    <div className="runtime-log"><div><span>Runtime output</span><small>{runtime?.pid ? `PID ${runtime.pid}` : runtime?.exit_code !== null && runtime?.exit_code !== undefined ? `Exited ${runtime.exit_code}` : "Not running"}</small></div>{runtime?.logs?.length ? <pre><code>{runtime.logs.join("\n")}</code></pre> : <p>Process output will appear here after the agent starts.</p>}</div>
+  </section>;
+}
+
 export default function AgentWorkspacePage({
   agents,
   onRefresh,
@@ -197,7 +268,7 @@ export default function AgentWorkspacePage({
         eyebrow="MANAGED AGENT / WORKSPACE"
         title={agent.name}
         description={agent.description}
-        actions={<button className="primary-button" onClick={() => navigate(`/workspace?agent=${agent.id}`)}>Edit in workspace</button>}
+        actions={<div className="agent-page-actions"><button className="quiet-button" onClick={() => navigate(`/benchmarks?agent=${agent.id}`)}>Benchmark</button><button className="primary-button" onClick={() => navigate(`/workspace?agent=${agent.id}`)}>Edit in workspace</button></div>}
       />
       <div className="agent-workspace-hero">
         <span className="agent-hero-avatar">{agent.name.charAt(0)}</span>
@@ -245,6 +316,11 @@ export default function AgentWorkspacePage({
             </div>
             <MCPConnectionEditor
               key={agent.id}
+              agent={agent}
+              onRefresh={onRefresh}
+              notify={notify}
+            />
+            <ImportedRuntimePanel
               agent={agent}
               onRefresh={onRefresh}
               notify={notify}

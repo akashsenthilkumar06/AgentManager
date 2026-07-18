@@ -6,7 +6,7 @@ import json
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable
 from uuid import uuid4
 
 import httpx
@@ -18,6 +18,11 @@ from backend.app.core.models import (
     ToolCallRecord,
 )
 from backend.app.infrastructure.mcp_client import ManagedAgentMCPClient
+
+RegisteredToolExecutor = Callable[
+    [str, dict[str, Any]],
+    Awaitable[dict[str, Any]],
+]
 
 
 @dataclass(slots=True)
@@ -39,12 +44,14 @@ class LiveConversationRunner:
         base_url: str,
         mcp_client: ManagedAgentMCPClient,
         transport: httpx.AsyncBaseTransport | None = None,
+        registered_tool_executor: RegisteredToolExecutor | None = None,
     ):
         self.api_key = api_key
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.mcp_client = mcp_client
         self.transport = transport
+        self.registered_tool_executor = registered_tool_executor
 
     @staticmethod
     def is_live_endpoint(agent: AgentRecord) -> bool:
@@ -78,6 +85,7 @@ class LiveConversationRunner:
             raise ValueError("No discovered MCP tools are enabled for this agent")
 
         tools, names = self._function_tools(available)
+        capabilities = {tool.name: tool for tool in available}
         input_items: list[dict[str, Any]] = [
             {
                 "role": "assistant" if message.role == "agent" else "user",
@@ -141,13 +149,37 @@ class LiveConversationRunner:
                     arguments = json.loads(str(item.get("arguments", "{}")))
                     if not isinstance(arguments, dict):
                         raise ValueError("Live tool arguments must be an object")
+                    capability = capabilities[remote_name]
+                    provider = capability.provider
+                    endpoint = (
+                        capability.provider_endpoint or agent.mcp_endpoint
+                        if provider == "agent_mcp"
+                        else (
+                            f"local://registered-tools/{capability.tool_id}"
+                            if capability.tool_id
+                            else "local://registered-tools"
+                        )
+                    )
                     started = time.perf_counter()
                     try:
-                        result = await self.mcp_client.call_tool(
-                            agent.mcp_endpoint or "",
-                            remote_name,
-                            arguments,
-                        )
+                        if provider == "manager_runtime":
+                            if (
+                                capability.tool_id is None
+                                or self.registered_tool_executor is None
+                            ):
+                                raise ValueError(
+                                    f"{remote_name} is not linked to a registered tool"
+                                )
+                            result = await self.registered_tool_executor(
+                                capability.tool_id,
+                                arguments,
+                            )
+                        else:
+                            result = await self.mcp_client.call_tool(
+                                endpoint or "",
+                                remote_name,
+                                arguments,
+                            )
                         status = "passed"
                         tool_output = result
                     except Exception as exc:
@@ -157,6 +189,7 @@ class LiveConversationRunner:
                         ToolCallRecord(
                             id=f"call_{uuid4().hex[:10]}",
                             tool_name=remote_name,
+                            tool_id=capability.tool_id,
                             status=status,
                             input=arguments,
                             output=tool_output,
@@ -166,6 +199,8 @@ class LiveConversationRunner:
                                     (time.perf_counter() - started) * 1000
                                 ),
                             ),
+                            provider=provider,
+                            endpoint=endpoint,
                         )
                     )
                     input_items.append(
@@ -200,11 +235,16 @@ class LiveConversationRunner:
         tool_calls: list[ToolCallRecord],
     ) -> LiveConversationResult:
         endpoint = agent.mcp_endpoint or ""
-        evidence = [f"Live MCP endpoint: {endpoint}"]
+        evidence = [f"Live agent endpoint: {endpoint}"]
         for call in tool_calls:
             source = call.output.get("source")
             proof = call.output.get("proof")
-            detail = f"{call.tool_name} returned status={call.status}"
+            detail = (
+                f"{call.tool_name} returned status={call.status} "
+                f"via {call.provider}"
+            )
+            if call.endpoint:
+                detail += f" at {call.endpoint}"
             if source:
                 detail += f", source={source}"
             if proof:
@@ -216,9 +256,9 @@ class LiveConversationRunner:
             text=text,
             tool_calls=tool_calls,
             criteria=[
-                "Use the configured external MCP endpoint",
-                "Call a discovered live tool when current data is required",
-                "Ground the answer in the returned MCP evidence",
+                "Use the selected agent's configured tool inventory",
+                "Call a discovered or attached tool when current data is required",
+                "Ground the answer in the real tool execution result",
             ],
             evidence=evidence,
             provider=f"openai:{self.model}+mcp",

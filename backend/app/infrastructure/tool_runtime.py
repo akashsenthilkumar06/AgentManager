@@ -6,6 +6,8 @@ import inspect
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from backend.app.core.models import ToolRecord
+
 
 SAFE_BUILTINS = {
     "bool": bool,
@@ -60,3 +62,19 @@ class ToolRuntime:
         http_get: Callable[[str], Awaitable[dict[str, Any]]],
     ) -> dict[str, Any]:
         return await self.execute_source(self.load_source(filename), payload, http_get)
+
+    async def execute_registered(
+        self,
+        tool: ToolRecord,
+        payload: dict[str, Any],
+        http_get: Callable[[str], Awaitable[dict[str, Any]]],
+        execute_operation: Callable[
+            [str | None, dict[str, Any]],
+            Awaitable[dict[str, Any]],
+        ],
+    ) -> dict[str, Any]:
+        """Execute a registered tool through its actual configured provider."""
+
+        if tool.generated and tool.source_file:
+            return await self.execute_file(tool.source_file, payload, http_get)
+        return await execute_operation(tool.operation, payload)

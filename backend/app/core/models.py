@@ -22,6 +22,7 @@ class AgentRecord(BaseModel):
     mcp_endpoint: str | None = None
     mcp_server_name: str | None = None
     mcp_tools: list["MCPToolCapability"] = Field(default_factory=list)
+    attached_tools: list["MCPToolCapability"] = Field(default_factory=list)
     mcp_prompts: list[str] = Field(default_factory=list)
     mcp_resources: list[str] = Field(default_factory=list)
     features: list[str] = Field(default_factory=list)
@@ -32,6 +33,11 @@ class AgentRecord(BaseModel):
     enabled_tools: list[str] = Field(default_factory=list)
     verification_mode: Literal["strict", "balanced", "advisory"] = "balanced"
     memory_enabled: bool = True
+    imported: bool = False
+    workspace_id: str | None = None
+    workspace_root: str | None = None
+    run_command: str | None = None
+    detected_entrypoints: list[str] = Field(default_factory=list)
 
 
 class AgentUpdateRequest(BaseModel):
@@ -68,10 +74,70 @@ class AgentUpdateRequest(BaseModel):
         return list(dict.fromkeys(value.strip() for value in values if value.strip()))
 
 
+class AgentImportRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=2000)
+    name: str | None = Field(default=None, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    owner: str = Field(default="Local workspace", min_length=2, max_length=100)
+    run_command: str | None = Field(default=None, max_length=1000)
+    mcp_endpoint: str | None = Field(default=None, max_length=500)
+    start_after_import: bool = False
+
+    @field_validator(
+        "path",
+        "name",
+        "description",
+        "owner",
+        "run_command",
+        "mcp_endpoint",
+    )
+    @classmethod
+    def normalize_import_text(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("mcp_endpoint")
+    @classmethod
+    def validate_import_endpoint(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value and not value.startswith(
+            ("demo://", "http://", "https://")
+        ):
+            raise ValueError(
+                "MCP endpoint must use demo://, http://, or https://"
+            )
+        return value
+
+
+class AgentProcessStartRequest(BaseModel):
+    command: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("command")
+    @classmethod
+    def normalize_process_command(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
 class MCPToolCapability(BaseModel):
     name: str
     description: str = ""
     input_schema: dict[str, Any] = Field(default_factory=dict)
+    tool_id: str | None = None
+    provider: Literal["agent_mcp", "manager_runtime"] = "agent_mcp"
+    provider_endpoint: str | None = None
 
 
 class EndpointRecord(BaseModel):
@@ -123,11 +189,20 @@ class ArchitectureState(BaseModel):
 class BuildRequest(BaseModel):
     prompt: str = Field(min_length=8, max_length=1000)
     deploy: bool = True
+    agent_id: str | None = Field(default=None, max_length=120)
 
     @field_validator("prompt")
     @classmethod
     def normalize_prompt(cls, value: str) -> str:
         return " ".join(value.split())
+
+    @field_validator("agent_id")
+    @classmethod
+    def normalize_agent_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 
 class StageResult(BaseModel):
@@ -168,6 +243,11 @@ class BuildRecord(BaseModel):
     validations: list[ValidationCheck] = Field(default_factory=list)
     workspace_files: list["WorkspaceFileMatch"] = Field(default_factory=list)
     error: str | None = None
+    target_agent_id: str | None = None
+    decision: Literal["build", "reuse", "attach", "conflict"] = "build"
+    decision_reason: str = ""
+    matched_tool_id: str | None = None
+    attached_agent_ids: list[str] = Field(default_factory=list)
 
 
 class WorkspaceFileMatch(BaseModel):
@@ -242,6 +322,95 @@ class HealthResult(BaseModel):
     message: str
 
 
+class FindingTrigger(BaseModel):
+    agent: str = "ArchitectureAgent"
+    action: str = "architecture.search"
+    status: Literal["triggered", "completed", "failed"] = "triggered"
+    detail: str = ""
+    related_component_ids: list[str] = Field(default_factory=list)
+
+
+class ReconciliationFinding(BaseModel):
+    id: str
+    key: str
+    kind: Literal[
+        "capability_drift",
+        "duplicate_capability",
+        "capability_conflict",
+        "endpoint_health",
+        "component_health",
+    ]
+    severity: Literal["info", "warning", "critical"]
+    status: Literal["open", "observed", "resolved"] = "open"
+    origin: Literal["standing_reconciliation"] = "standing_reconciliation"
+    title: str
+    detail: str
+    why_it_matters: str
+    agent_ids: list[str] = Field(default_factory=list)
+    tool_names: list[str] = Field(default_factory=list)
+    before: dict[str, Any] = Field(default_factory=dict)
+    after: dict[str, Any] = Field(default_factory=dict)
+    detected_at: str = Field(default_factory=utc_now)
+    last_seen_at: str = Field(default_factory=utc_now)
+    resolved_at: str | None = None
+    occurrences: int = 1
+    trigger: FindingTrigger | None = None
+
+
+class BenchmarkRequest(BaseModel):
+    agent_id: str
+
+
+class BenchmarkMetric(BaseModel):
+    id: Literal[
+        "overall_score",
+        "task_success",
+        "tool_coverage",
+        "grounding_rate",
+        "verification_rate",
+        "average_latency",
+    ]
+    label: str
+    unit: Literal["percent", "milliseconds"]
+    higher_is_better: bool = True
+    baseline: float
+    managed: float
+
+
+class BenchmarkSideResult(BaseModel):
+    status: Literal["passed", "failed", "unavailable"]
+    tool_name: str
+    provider: str | None = None
+    latency_ms: int = 0
+    output_keys: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+class BenchmarkScenarioResult(BaseModel):
+    id: str
+    title: str
+    objective: str
+    required_tool: str
+    probe_input: dict[str, Any] = Field(default_factory=dict)
+    baseline: BenchmarkSideResult
+    managed: BenchmarkSideResult
+
+
+class BenchmarkRun(BaseModel):
+    id: str
+    agent_id: str
+    agent_name: str
+    status: Literal["completed", "failed"] = "completed"
+    created_at: str = Field(default_factory=utc_now)
+    baseline_label: str = "Without Agentic Manager"
+    managed_label: str = "With Agentic Manager"
+    summary: str
+    metrics: list[BenchmarkMetric] = Field(default_factory=list)
+    scenarios: list[BenchmarkScenarioResult] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
 class ExecuteRequest(BaseModel):
     payload: dict[str, Any]
 
@@ -254,6 +423,12 @@ class ToolCallRecord(BaseModel):
     input: dict[str, Any] = Field(default_factory=dict)
     output: dict[str, Any] = Field(default_factory=dict)
     duration_ms: int = 0
+    provider: Literal[
+        "agent_mcp",
+        "manager_runtime",
+        "deterministic",
+    ] = "deterministic"
+    endpoint: str | None = None
 
 
 class OutputVerification(BaseModel):

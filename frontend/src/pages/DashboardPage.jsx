@@ -19,6 +19,9 @@ export default function DashboardPage({ overview, health }) {
   const agents = architecture.agents;
   const conversations = overview.recent_conversations || [];
   const builds = overview.recent_builds || [];
+  const findings = overview.standing_findings || [];
+  const activeFindings = findings.filter((finding) => finding.status !== "resolved");
+  const reconciliation = overview.reconciliation || {};
   const latestConversation = conversations[0];
   const latestAgent = agents.find((agent) => agent.id === latestConversation?.agent_id) || agents[0];
   const attention = (health?.results || []).filter((result) => result.status !== "healthy");
@@ -41,6 +44,19 @@ export default function DashboardPage({ overview, health }) {
       agentId: target.agentId,
       mode: "test",
       toolName: target.toolName,
+      context: "full",
+    }));
+  }
+
+  function openFinding(finding) {
+    if (!finding.agent_ids?.length) {
+      navigate("/health");
+      return;
+    }
+    navigate(workspaceUrl({
+      agentId: finding.agent_ids[0],
+      mode: "test",
+      toolName: finding.tool_names?.[0],
       context: "full",
     }));
   }
@@ -78,10 +94,47 @@ export default function DashboardPage({ overview, health }) {
           <div className="pulse-lines">
             <div><span><i />MCP connections</span><strong>{overview.mcp_servers.length}/{overview.mcp_servers.length}</strong></div>
             <div><span><i />Managed agents</span><strong>{agents.filter((agent) => agent.status === "healthy").length}/{agents.length}</strong></div>
-            <div><span><i className={attention.length ? "warning" : ""} />Needs attention</span><strong>{attention.length}</strong></div>
+            <div><span><i className={attention.length || activeFindings.length ? "warning" : ""} />Needs attention</span><strong>{attention.length + activeFindings.length}</strong></div>
           </div>
           <button onClick={() => navigate("/health")}>View system health <span>→</span></button>
         </article>
+      </section>
+
+      <section className="dashboard-section standing-watch-section">
+        <div className="dashboard-section-heading">
+          <div><span>AUTONOMOUS CONTROL PLANE</span><h2>Caught without a prompt</h2></div>
+          <small>{reconciliation.last_checked_at ? `Last sweep ${timeAgo(reconciliation.last_checked_at)} · 0 model tokens` : "Establishing fleet baseline"}</small>
+        </div>
+        <div className="standing-watch-status">
+          <span><i />Standing reconciliation</span>
+          <strong>{reconciliation.mode === "edge_triggered" ? "Edge-triggered" : "Starting"}</strong>
+          <small>{reconciliation.interval_seconds || 30}s observation interval · ArchitectureAgent runs only when a new signal appears</small>
+        </div>
+        {findings.length ? (
+          <div className="standing-finding-feed">
+            {findings.slice(0, 4).map((finding) => (
+              <article className={`standing-finding ${finding.severity} ${finding.status}`} key={finding.id}>
+                <span className="standing-finding-signal">{finding.status === "resolved" ? "✓" : finding.severity === "critical" ? "!!" : "!"}</span>
+                <div>
+                  <span>{finding.kind.replaceAll("_", " ")} · {finding.status}</span>
+                  <strong>{finding.title}</strong>
+                  <p>{finding.detail}</p>
+                  <small>{finding.why_it_matters}</small>
+                  {finding.trigger && <em>↳ {finding.trigger.agent} {finding.trigger.status}: {finding.trigger.detail}</em>}
+                </div>
+                <div className="standing-finding-meta">
+                  <time>{timeAgo(finding.last_seen_at)}</time>
+                  <button onClick={() => openFinding(finding)} aria-label={`Open finding ${finding.title}`}>Inspect <b>→</b></button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="standing-watch-clear">
+            <span>◉</span>
+            <div><strong>Fleet baseline is steady</strong><small>No unprompted drift, independent duplicates, contract conflicts, or endpoint failures have been observed.</small></div>
+          </div>
+        )}
       </section>
 
       <section className="dashboard-section attention-section">

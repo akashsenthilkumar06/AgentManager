@@ -7,13 +7,19 @@ from pathlib import Path
 
 from backend.app.core.models import AgentRecord
 from backend.app.core.storage import JsonStore
+from backend.app.infrastructure.workspace_access import WorkspaceAccess
 
 
 class ManagedAgentWorkspace:
     """Persists each managed agent as an independently inspectable file sector."""
 
-    def __init__(self, store: JsonStore):
+    def __init__(
+        self,
+        store: JsonStore,
+        workspace_access: WorkspaceAccess,
+    ):
         self.store = store
+        self.workspace_access = workspace_access
 
     @property
     def root(self) -> Path:
@@ -40,6 +46,11 @@ class ManagedAgentWorkspace:
                     "tool_policy": agent.tool_policy,
                     "verification_mode": agent.verification_mode,
                     "memory_enabled": agent.memory_enabled,
+                    "imported": agent.imported,
+                    "workspace_id": agent.workspace_id,
+                    "workspace_root": agent.workspace_root,
+                    "run_command": agent.run_command,
+                    "detected_entrypoints": agent.detected_entrypoints,
                 },
                 indent=2,
             )
@@ -52,6 +63,9 @@ class ManagedAgentWorkspace:
                 {
                     "mcp_endpoint": agent.mcp_endpoint,
                     "enabled_tools": agent.enabled_tools,
+                    "attached_tools": [
+                        tool.model_dump() for tool in agent.attached_tools
+                    ],
                     "discovered_tools": [
                         tool.model_dump() for tool in agent.mcp_tools
                     ],
@@ -61,10 +75,14 @@ class ManagedAgentWorkspace:
             + "\n",
         )
 
-    def inspect(self, agent: AgentRecord) -> dict[str, object]:
+    def inspect(
+        self,
+        agent: AgentRecord,
+        query: str = "",
+    ) -> dict[str, object]:
         self.sync(agent)
         directory = self.root / agent.id
-        return {
+        result: dict[str, object] = {
             "workspace": str(directory),
             "files": [
                 {
@@ -76,6 +94,47 @@ class ManagedAgentWorkspace:
                 if path.is_file()
             ],
         }
+        connected = next(
+            (
+                workspace
+                for workspace in self.store.connected_workspaces()
+                if workspace.agent_id == agent.id
+            ),
+            None,
+        )
+        if connected is None:
+            return result
+        root = self.workspace_access.validate_root(
+            Path(connected.root_path)
+        )
+        matches = self.workspace_access.search(
+            query or agent.description,
+            limit=12,
+            root=root,
+        )
+        context_files = []
+        for match in matches:
+            try:
+                content = self.workspace_access.read_file(
+                    match.path,
+                    root=root,
+                )
+            except (FileNotFoundError, PermissionError):
+                continue
+            context_files.append(
+                {
+                    **match.model_dump(),
+                    "language": content.language,
+                    "content": content.content,
+                    "truncated": content.truncated,
+                }
+            )
+        result["connected_workspace"] = {
+            **connected.model_dump(),
+            **self.workspace_access.summary(root),
+        }
+        result["context_files"] = context_files
+        return result
 
     def apply_instructions(self, agent: AgentRecord, instructions: str) -> AgentRecord:
         updated = agent.model_copy(update={"instructions": instructions.strip()})

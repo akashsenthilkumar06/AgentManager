@@ -1,8 +1,16 @@
 # Agentic AI Manager
 
-Agentic AI Manager is a working hackathon MVP of a conversational development environment for enterprise agents. A user selects a client agent and tells the Manager Agent what outcome to change. The Manager chooses Architecture, Workspace, Developer, and Validation tools, inspects the client agent, prepares the edit, evaluates it, and either stages it for review or applies it automatically. A separate Test mode talks directly to the client agent and verifies its response.
+Agentic AI Manager is a working control-plane MVP for a fleet of independent
+agents. It discovers what the fleet can already do, prevents duplicate or
+conflicting capability work, attaches reusable or newly built tools to the
+right agents, watches for drift, and keeps the decisions and evidence visible.
+A Manager workspace can stage or apply agent-instruction changes, while a
+separate Test mode talks directly to the selected client agent and verifies its
+real output.
 
-The project is designed to make the complete loop visible in one demo—not just code generation, but the context gathering and operational guardrails that make generated tools credible.
+The project is designed to make the complete loop visible in one demo: fleet
+reasoning, context gathering, real tool attachment and execution, ongoing
+reconciliation, and measured before/after evidence.
 
 ## What works
 
@@ -13,11 +21,23 @@ The project is designed to make the complete loop visible in one demo—not just
 - Static AST policy, dependency, JSON-schema, runtime, and output-contract validation
 - Registration into a persistent JSON metadata store
 - Continuous representative-input health probes
+- Standing zero-token fleet reconciliation for capability drift, independent duplicates, contract conflicts, and endpoint failures
+- Edge-triggered ArchitectureAgent review and a separate autonomous-finding feed
+- Paired, persisted benchmarks comparing original and Manager-enhanced agent
+  configurations with the same executable tool probes
+- Side-by-side score, coverage, grounding, verification, latency, and
+  per-scenario evidence graphs in React
 - Persistent, agent-scoped conversation history
 - Conversational client-agent editing through the Manager Agent
 - OpenAI Responses API tool-calling loop when `OPENAI_API_KEY` is configured
 - Deterministic offline orchestration through the same specialist-tool sequence
 - Per-client local workspace sectors with `agent.json`, `instructions.md`, and `tools.json`
+- Managed-agent directory import with project metadata, instruction, language,
+  entrypoint, and MCP endpoint detection
+- Scoped source indexing for imported projects, with relevant real files passed
+  into Manager workspace inspection
+- Explicit start, stop, status, and captured-log controls for an imported
+  agent's configured local run command
 - User-selectable Review and Auto write modes
 - Focused or full agent-context import for each request
 - Per-message tool traces and acceptance-criteria-based output verification
@@ -35,7 +55,7 @@ The project is designed to make the complete loop visible in one demo—not just
 
 ```mermaid
 flowchart LR
-    U["Edit request"] --> AM["Manager Agent"]
+    U["Fleet change request"] --> AM["Manager Agent"]
     AM --> AS["Architecture MCP"]
     AM --> WS["Workspace MCP"]
     AM --> DS["Developer specialist"]
@@ -54,6 +74,17 @@ flowchart LR
     T2 --> OV
     OV --> TH["Agent and tool history"]
     AM --> OAI["OpenAI Responses loop or local fallback"]
+    RC["Standing reconciliation loop"] --> AS
+    RC --> MH["Monitoring health probes"]
+    AS --> FF["Autonomous findings feed"]
+    MH --> FF
+    IA["Imported local agent directory"] --> WS
+    IA --> PR["Explicit process runner"]
+    BM["Paired benchmark runner"] --> B0["Original configuration"]
+    BM --> B1["Manager-enhanced configuration"]
+    B0 --> BE["Observed tool evidence"]
+    B1 --> BE
+    BE --> BG["Comparison graphs"]
 ```
 
 The React frontend and FastAPI backend are independent applications. Vite owns the UI development and production build; Uvicorn runs only the REST and MCP APIs. Every backend agent has its own module under `backend/app/agents`. REST and MCP transports are separate from the agents, so each agent can later move into an independent service without changing its domain logic.
@@ -81,8 +112,9 @@ The UI is divided into focused routes:
 |---|---|
 | `/` | See active work, agent status, attention items, and recent activity |
 | `/workspace` | Edit an agent's configuration or switch to Test mode to query and verify it |
-| `/agents` | Browse managed agents and enter their individual workspaces |
-| `/agents/:agentId` | Review one agent's conversations, capabilities, and nested tool workspaces |
+| `/agents` | Browse agents or add a local agent directory to the managed fleet |
+| `/agents/:agentId` | Review one agent's conversations, capabilities, source connection, runtime, and nested tool workspaces |
+| `/benchmarks` | Run and inspect paired before/after capability benchmarks |
 | `/history` | Return to agent conversations and capability runs |
 | `/health` | Review continuous probes |
 
@@ -129,7 +161,63 @@ calls back to the external MCP server. Missing configuration or top-level live
 failures use the existing deterministic behavior, but the response is marked
 `Fallback demo` with the exact reason; it is never presented as a live result.
 
+Standing reconciliation does not call OpenAI on its interval. It refreshes MCP
+discovery and existing health probes, compares them with the last JSON-store
+snapshot, and records only new drift or anomalies. A new signal edge invokes
+the existing ArchitectureAgent search and saves that review with the finding.
+Set `AGENT_MANAGER_RECONCILIATION_INTERVAL_SECONDS` to change the default
+30-second interval (minimum 5 seconds).
+
 For separate hosting, set `VITE_API_BASE_URL` in the frontend and add the frontend origin to `AGENT_MANAGER_FRONTEND_ORIGINS` in the backend.
+
+## Import and run a local agent
+
+Open **Managed agents** and choose **Add agent**. Enter an absolute directory
+path on the machine running the backend. The import flow:
+
+1. creates an idempotent fleet record and a connected, read-only workspace;
+2. indexes up to 1,000 supported visible source files;
+3. detects README context, agent instructions, project languages, optional MCP
+   configuration, and common launch commands from `package.json`, `Makefile`,
+   `pyproject.toml`, and Python entrypoints;
+4. makes query-relevant source contents available to the Manager's workspace
+   inspection; and
+5. optionally starts the chosen command, or exposes start/stop/log controls in
+   the imported agent's Overview page.
+
+Commands are parsed into arguments and executed directly in the imported
+directory without a shell. Starting `make dev`, `npm run dev`, or another
+multi-process command creates its own process group, and **Stop agent**
+terminates that complete group. Processes and captured logs are intentionally
+in-memory and stop when the Manager backend shuts down.
+
+The current source connection is read-only: the Manager can inspect project
+files and edit the managed agent's own configuration/instructions, but it does
+not silently rewrite arbitrary imported source. `.env` files, credentials,
+private keys, Git internals, dependency directories, and build output remain
+excluded.
+
+## Paired benchmarks
+
+The **Benchmarks** page compares two configurations of the same selected agent:
+
+- **Without Manager** uses the seeded original configuration for built-in demo
+  agents. For imported agents, it removes Manager-attached tools and retains
+  native MCP capabilities.
+- **With Manager** uses the current managed configuration, including enabled
+  attached tools.
+
+The runner builds one shared scenario set from the union of available
+capabilities, gives both sides identical representative input, and actually
+executes every available tool. Registered tools run their stored
+implementation; HTTP(S) MCP tools call the configured external endpoint.
+Results include task success, tool coverage, structured-output grounding,
+verification readiness, observed latency, and the exact pass/fail/unavailable
+result for each capability. Runs are stored in the existing JSON state.
+
+The benchmark deliberately makes no OpenAI call and claims no improvement when
+both sides are equal. It measures executable capability availability and tool
+behavior; it is not yet a semantic judge of open-ended answer quality.
 
 ## Live external-agent verification
 
@@ -206,14 +294,18 @@ Direct `curl` examples for `initialize`, `tools/list`, and `tools/call` are in
 
 ### Workspace file access
 
-Browsers cannot silently access arbitrary local files. Instead, the backend exposes one explicit, read-only workspace boundary. It defaults to this repository and can be changed before startup:
+Browsers cannot silently access arbitrary local files. The default workspace
+boundary supports the Manager's own context and can be changed before startup:
 
 ```bash
 export AGENT_MANAGER_WORKSPACE_ROOT="/absolute/path/to/a/codebase"
 make dev
 ```
 
-The file service blocks traversal outside that root and excludes `.git`, virtual environments, dependency/build directories, `.env` files, credentials, private keys, and unsupported binary formats. Production deployments should mount only repositories the Manager is authorized to inspect.
+Imported-agent directories create additional explicit read-only boundaries.
+Every boundary blocks traversal outside its root and applies the same secret,
+dependency, build, and binary exclusions. Production deployments should mount
+only repositories the Manager is authorized to inspect.
 
 ## Demo script
 
@@ -234,11 +326,17 @@ The alternate Inventory risk prompt demonstrates routing to a second constrained
 | `GET` | `/api/overview` | Architecture, counts, MCP services, and recent builds |
 | `POST` | `/api/builds` | Run the full build pipeline |
 | `GET` | `/api/builds` | Return the build audit trail |
+| `POST` | `/api/benchmarks` | Run a paired original-versus-managed benchmark |
+| `GET` | `/api/benchmarks` | List benchmark history, optionally by agent |
 | `GET` | `/api/health` | Probe endpoints and registered tools |
 | `GET` | `/api/managed-agents` | Return managed agents and discovered MCP capabilities |
 | `POST` | `/api/managed-agents/discover` | Refresh all managed-agent MCP capabilities |
+| `POST` | `/api/managed-agents/import` | Import, inspect, and optionally start a local agent directory |
 | `POST` | `/api/managed-agents/{agent_id}/discover` | Test and refresh one managed agent's MCP endpoint |
 | `PATCH` | `/api/managed-agents/{agent_id}` | Persist the editable agent configuration |
+| `GET` | `/api/managed-agents/{agent_id}/process` | Read imported-agent process status and logs |
+| `POST` | `/api/managed-agents/{agent_id}/process/start` | Start an imported agent's configured command |
+| `POST` | `/api/managed-agents/{agent_id}/process/stop` | Stop the imported agent process group |
 | `GET` | `/api/manager/conversations` | Return Manager work history for a selected client agent |
 | `POST` | `/api/manager/message` | Run the Manager tool-selection and edit loop |
 | `POST` | `/api/manager/conversations/{conversation_id}/apply` | Apply reviewed staged changes |
@@ -277,7 +375,11 @@ cd frontend && npm run check
 cd frontend && npm run build
 ```
 
-The tests cover agent conversations, context import, tool traces, output verification, the complete order and inventory pipelines, live execution, continuous monitoring, request validation, and MCP discovery/calling.
+The tests cover agent conversations, context import, imported directory
+inspection and process control, paired benchmark parity/uplift evidence, tool
+traces, output verification, the complete order and inventory pipelines, live
+execution, continuous reconciliation, request validation, and MCP
+discovery/calling.
 
 ## Security posture and MVP boundaries
 
@@ -310,6 +412,8 @@ backend/
     agents/
       manager_agent.py        Full multi-stage orchestration pipeline
       agentic_manager.py      Conversational client-agent editing loop
+      benchmark_agent.py      Paired executable before/after evaluation
+      import_agent.py         Local project detection and fleet import
       conversation_agent.py   Agent chat, tool use, and output verification
       architecture_agent.py   Architecture search and reuse discovery
       developer_agent.py      Constrained tool synthesis
@@ -328,6 +432,7 @@ backend/
       live_conversation.py    OpenAI reasoning loop over live remote MCP tools
       mcp_client.py           Managed-agent MCP discovery and tool-call client
       managed_workspace.py    Per-client editable local file sectors
+      agent_process.py        Explicit imported-agent process-group controls
       openai_manager.py       OpenAI Responses API function-calling loop
       mock_system.py          Local enterprise API stand-ins
       tool_runtime.py         Generated-tool execution runtime
@@ -351,6 +456,8 @@ tests/
 |---|---|---|
 | Manager | `backend/app/agents/manager_agent.py` | Coordinates the complete build lifecycle |
 | Agentic Manager | `backend/app/agents/agentic_manager.py` | Selects specialists and edits a client agent conversationally |
+| Benchmark | `backend/app/agents/benchmark_agent.py` | Runs identical real capability probes against original and managed configurations |
+| Import | `backend/app/agents/import_agent.py` | Detects, connects, and optionally launches a local agent project |
 | Conversation | `backend/app/agents/conversation_agent.py` | Runs scoped agent turns and verifies grounded outputs |
 | Architecture | `backend/app/agents/architecture_agent.py` | Finds existing agents, tools, APIs, and reusable components |
 | Developer | `backend/app/agents/developer_agent.py` | Produces constrained tool implementations and plans |

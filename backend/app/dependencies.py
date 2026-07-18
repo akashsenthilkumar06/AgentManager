@@ -6,14 +6,18 @@ free of construction logic and making each agent independently testable.
 
 from backend.app.agents.architecture_agent import ArchitectureAgent
 from backend.app.agents.agentic_manager import AgenticManager
+from backend.app.agents.benchmark_agent import BenchmarkAgent
 from backend.app.agents.conversation_agent import ConversationAgent
 from backend.app.agents.developer_agent import DeveloperAgent
+from backend.app.agents.import_agent import ImportAgent
 from backend.app.agents.manager_agent import ManagerAgent
 from backend.app.agents.monitoring_agent import MonitoringAgent
 from backend.app.agents.validation_agent import ValidationAgent
 from backend.app.config import Settings
+from backend.app.core.models import ToolRecord
 from backend.app.core.storage import JsonStore
 from backend.app.infrastructure.llm_router import LLMRouter
+from backend.app.infrastructure.agent_process import AgentProcessManager
 from backend.app.infrastructure.live_conversation import LiveConversationRunner
 from backend.app.infrastructure.managed_workspace import ManagedAgentWorkspace
 from backend.app.infrastructure.mcp_client import ManagedAgentMCPClient
@@ -29,12 +33,48 @@ mock_system = MockSystem()
 runtime = ToolRuntime(settings.generated_dir)
 mcp_client = ManagedAgentMCPClient()
 workspace_access = WorkspaceAccess(settings.workspace_root)
-managed_workspace = ManagedAgentWorkspace(store)
+managed_workspace = ManagedAgentWorkspace(store, workspace_access)
+agent_process_manager = AgentProcessManager()
+
+
+async def execute_registered_tool(
+    tool_id: str,
+    payload: dict,
+) -> dict:
+    tool_data = store.get_tool(tool_id)
+    if tool_data is None:
+        raise ValueError(f"Registered tool not found: {tool_id}")
+    tool = ToolRecord.model_validate(tool_data)
+    return await runtime.execute_registered(
+        tool,
+        payload,
+        mock_system.get,
+        mock_system.execute_operation,
+    )
+
 
 architecture_agent = ArchitectureAgent(mcp_client)
+import_agent = ImportAgent(
+    store,
+    architecture_agent,
+    workspace_access,
+    managed_workspace,
+    agent_process_manager,
+)
+benchmark_agent = BenchmarkAgent(
+    store,
+    mcp_client,
+    execute_registered_tool,
+)
 developer_agent = DeveloperAgent()
 validation_agent = ValidationAgent(runtime, mock_system)
-monitoring_agent = MonitoringAgent(runtime, mock_system)
+monitoring_agent = MonitoringAgent(
+    runtime,
+    mock_system,
+    store,
+    architecture_agent,
+    managed_workspace,
+)
 llm_router = LLMRouter(
     settings.openai_api_key,
     settings.openai_model,
@@ -48,12 +88,14 @@ manager_agent = ManagerAgent(
     runtime,
     llm_router,
     workspace_access,
+    managed_workspace,
 )
 live_conversation_runner = LiveConversationRunner(
     settings.openai_api_key,
     settings.openai_model,
     settings.openai_base_url,
     mcp_client,
+    registered_tool_executor=execute_registered_tool,
 )
 conversation_agent = ConversationAgent(
     store,

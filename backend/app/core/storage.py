@@ -9,9 +9,11 @@ from backend.app.core.models import (
     AgentConversation,
     AgentRecord,
     ArchitectureState,
+    BenchmarkRun,
     BuildRecord,
     ConnectedWorkspace,
     ManagerConversation,
+    ReconciliationFinding,
     utc_now,
 )
 from backend.app.core.seed import demo_architecture
@@ -37,6 +39,9 @@ class JsonStore:
                 "conversations": [],
                 "manager_conversations": [],
                 "workspaces": [],
+                "findings": [],
+                "reconciliation": {},
+                "benchmarks": [],
                 "updated_at": utc_now(),
             }
             self._write(state)
@@ -67,6 +72,18 @@ class JsonStore:
 
     def builds(self) -> list[BuildRecord]:
         return [BuildRecord.model_validate(item) for item in self.read().get("builds", [])]
+
+    def benchmarks(
+        self,
+        agent_id: str | None = None,
+    ) -> list[BenchmarkRun]:
+        runs = [
+            BenchmarkRun.model_validate(item)
+            for item in self.read().get("benchmarks", [])
+        ]
+        if agent_id:
+            runs = [item for item in runs if item.agent_id == agent_id]
+        return runs
 
     def conversations(self, agent_id: str | None = None) -> list[AgentConversation]:
         conversations = [
@@ -110,6 +127,90 @@ class JsonStore:
             None,
         )
 
+    def findings(
+        self,
+        status: str | None = None,
+    ) -> list[ReconciliationFinding]:
+        findings = [
+            ReconciliationFinding.model_validate(item)
+            for item in self.read().get("findings", [])
+        ]
+        if status:
+            findings = [item for item in findings if item.status == status]
+        return findings
+
+    def get_finding(self, key: str) -> ReconciliationFinding | None:
+        return next(
+            (item for item in self.findings() if item.key == key),
+            None,
+        )
+
+    def upsert_finding(
+        self,
+        finding: ReconciliationFinding,
+    ) -> ReconciliationFinding:
+        result = finding
+
+        def update(state: dict[str, Any]) -> None:
+            nonlocal result
+            findings = state.setdefault("findings", [])
+            for index, current in enumerate(findings):
+                if current.get("key") != finding.key:
+                    continue
+                existing = ReconciliationFinding.model_validate(current)
+                result = finding.model_copy(
+                    update={
+                        "id": existing.id,
+                        "detected_at": existing.detected_at,
+                        "occurrences": existing.occurrences + 1,
+                        "trigger": finding.trigger or existing.trigger,
+                    }
+                )
+                findings[index] = result.model_dump()
+                break
+            else:
+                findings.insert(0, finding.model_dump())
+                result = finding
+            findings.sort(
+                key=lambda item: item.get("last_seen_at", ""),
+                reverse=True,
+            )
+            del findings[100:]
+
+        self.mutate(update)
+        return result
+
+    def resolve_reconciliation_findings(
+        self,
+        active_keys: set[str],
+        ongoing_kinds: set[str],
+        resolved_at: str,
+    ) -> None:
+        def update(state: dict[str, Any]) -> None:
+            for item in state.setdefault("findings", []):
+                if (
+                    item.get("kind") in ongoing_kinds
+                    and item.get("status") == "open"
+                    and item.get("key") not in active_keys
+                ):
+                    item["status"] = "resolved"
+                    item["resolved_at"] = resolved_at
+                    item["last_seen_at"] = resolved_at
+
+        self.mutate(update)
+
+    def reconciliation_snapshot(self) -> dict[str, Any]:
+        return self.read().get("reconciliation", {})
+
+    def set_reconciliation_snapshot(
+        self,
+        snapshot: dict[str, Any],
+    ) -> None:
+        def update(state: dict[str, Any]) -> None:
+            state["reconciliation"] = snapshot
+
+        self.mutate(update)
+
     def mutate(self, fn: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
         with self._lock:
             state = self.read()
@@ -129,6 +230,20 @@ class JsonStore:
             else:
                 builds.insert(0, item)
             del builds[30:]
+
+        self.mutate(update)
+
+    def upsert_benchmark(self, run: BenchmarkRun) -> None:
+        def update(state: dict[str, Any]) -> None:
+            runs = state.setdefault("benchmarks", [])
+            item = run.model_dump()
+            for index, current in enumerate(runs):
+                if current["id"] == run.id:
+                    runs[index] = item
+                    break
+            else:
+                runs.insert(0, item)
+            del runs[50:]
 
         self.mutate(update)
 

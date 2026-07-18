@@ -66,6 +66,22 @@ CUSTOMERS = {
 class MockSystem:
     """In-process stand-in for the existing enterprise APIs in the demo."""
 
+    async def execute_operation(
+        self,
+        operation: str | None,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        if operation == "lookup_order":
+            key = str(payload.get("order_id", "")).upper()
+            return await self.get("/mock/orders/" + key)
+        if operation == "track_shipment":
+            key = str(payload.get("order_id", "")).upper()
+            return await self.get("/mock/shipments/by-order/" + key)
+        if operation == "check_inventory":
+            key = str(payload.get("sku", "")).upper()
+            return await self.get("/mock/inventory/" + key)
+        raise ValueError("Tool has no executable operation")
+
     async def get(self, path: str) -> dict[str, Any]:
         await asyncio.sleep(0.006)
         patterns = [

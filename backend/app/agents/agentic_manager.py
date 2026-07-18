@@ -195,8 +195,16 @@ class AgenticManager:
                 }
                 detail = f"Found {len(matches)} relevant architecture components."
             elif name == "workspace_inspect":
-                result = self.managed_workspace.inspect(agent)
-                detail = f"Inspected {len(result['files'])} files in {agent.id}."
+                result = self.managed_workspace.inspect(
+                    agent,
+                    query=str(state["prompt"]),
+                )
+                connected_count = len(result.get("context_files", []))
+                detail = (
+                    f"Inspected {len(result['files'])} manager files and "
+                    f"{connected_count} relevant connected-workspace files "
+                    f"for {agent.id}."
+                )
             elif name == "developer_propose_change":
                 addition = str(arguments.get("instructions_append", "")).strip()
                 if not addition:

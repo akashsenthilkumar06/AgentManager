@@ -9,7 +9,10 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.app.core.models import (
     AgentChatRequest,
+    AgentImportRequest,
+    AgentProcessStartRequest,
     AgentUpdateRequest,
+    BenchmarkRequest,
     BuildRequest,
     ConnectedWorkspace,
     ConnectWorkspaceRequest,
@@ -21,7 +24,12 @@ from backend.app.core.models import (
 from backend.app.dependencies import (
     architecture_agent,
     agentic_manager,
+    agent_process_manager,
+    benchmark_agent,
     conversation_agent,
+    execute_registered_tool,
+    import_agent,
+    managed_workspace,
     manager_agent,
     mock_system,
     monitoring_agent,
@@ -38,13 +46,29 @@ router = APIRouter()
 @router.get("/api/overview")
 async def overview() -> dict[str, Any]:
     architecture = store.architecture()
+    reconciliation = store.reconciliation_snapshot()
     return {
         "summary": architecture_agent.summary(architecture),
         "architecture": architecture.model_dump(),
         "recent_builds": [build.model_dump() for build in store.builds()[:5]],
+        "recent_benchmarks": [
+            run.model_dump() for run in store.benchmarks()[:5]
+        ],
         "recent_conversations": [
             conversation.model_dump() for conversation in store.conversations()[:8]
         ],
+        "standing_findings": [
+            finding.model_dump() for finding in store.findings()[:8]
+        ],
+        "reconciliation": {
+            "mode": "edge_triggered",
+            "interval_seconds": (
+                settings.reconciliation_interval_seconds
+            ),
+            "last_checked_at": reconciliation.get("last_checked_at"),
+            "last_error": reconciliation.get("last_error"),
+            "summary": reconciliation.get("summary", {}),
+        },
         "mcp_servers": [
             {"id": "architecture", "name": "Architecture", "status": "connected", "tools": 2},
             {"id": "workspace", "name": "Client Workspace", "status": "connected", "tools": 1},
@@ -55,9 +79,119 @@ async def overview() -> dict[str, Any]:
     }
 
 
+@router.get("/api/findings")
+async def list_findings(
+    status: str | None = Query(default=None),
+) -> list[dict[str, Any]]:
+    if status not in {None, "open", "observed", "resolved"}:
+        raise HTTPException(
+            status_code=422,
+            detail="Finding status must be open, observed, or resolved",
+        )
+    return [
+        finding.model_dump()
+        for finding in store.findings(status=status)
+    ]
+
+
 @router.get("/api/managed-agents")
 async def list_managed_agents() -> list[dict[str, Any]]:
     return [agent.model_dump() for agent in store.architecture().agents]
+
+
+@router.post("/api/managed-agents/import")
+async def import_managed_agent(
+    request: AgentImportRequest,
+) -> dict[str, Any]:
+    try:
+        return await import_agent.import_directory(request)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="Agent directory was not found",
+        ) from exc
+    except NotADirectoryError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Agent path must be a directory",
+        ) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/api/managed-agents/{agent_id}/process")
+async def managed_agent_process_status(
+    agent_id: str,
+) -> dict[str, Any]:
+    agent = next(
+        (
+            item
+            for item in store.architecture().agents
+            if item.id == agent_id
+        ),
+        None,
+    )
+    if agent is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Managed agent not found",
+        )
+    return agent_process_manager.status(agent_id)
+
+
+@router.post("/api/managed-agents/{agent_id}/process/start")
+async def start_managed_agent_process(
+    agent_id: str,
+    request: AgentProcessStartRequest,
+) -> dict[str, Any]:
+    agent = next(
+        (
+            item
+            for item in store.architecture().agents
+            if item.id == agent_id
+        ),
+        None,
+    )
+    if agent is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Managed agent not found",
+        )
+    if not agent.imported or not agent.workspace_root:
+        raise HTTPException(
+            status_code=422,
+            detail="Only imported local agents have a runnable workspace",
+        )
+    command = request.command or agent.run_command
+    if not command:
+        raise HTTPException(
+            status_code=422,
+            detail="Configure a run command before starting this agent",
+        )
+    if command != agent.run_command:
+        agent = agent.model_copy(update={"run_command": command})
+        store.update_agent(agent)
+        managed_workspace.sync(agent)
+    try:
+        return agent_process_manager.start(
+            agent.id,
+            command,
+            workspace_access.validate_root(
+                Path(agent.workspace_root)
+            ),
+        )
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/api/managed-agents/{agent_id}/process/stop")
+async def stop_managed_agent_process(
+    agent_id: str,
+) -> dict[str, Any]:
+    try:
+        return agent_process_manager.stop(agent_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/api/managed-agents/discover")
@@ -65,6 +199,8 @@ async def discover_managed_agents() -> dict[str, Any]:
     architecture = store.architecture()
     agents = await architecture_agent.discover_all(architecture)
     store.update_agents(agents)
+    for agent in agents:
+        managed_workspace.sync(agent)
     return {
         "agents": [agent.model_dump() for agent in agents],
         "tool_count": sum(len(agent.mcp_tools) for agent in agents),
@@ -89,6 +225,7 @@ async def discover_managed_agent(agent_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     agents = [discovered if item.id == agent_id else item for item in architecture.agents]
     store.update_agents(agents)
+    managed_workspace.sync(discovered)
     return discovered.model_dump()
 
 
@@ -126,6 +263,7 @@ async def update_managed_agent(
         )
     updated = agent.model_copy(update=updates)
     store.update_agent(updated)
+    managed_workspace.sync(updated)
     return updated.model_dump()
 
 
@@ -309,6 +447,26 @@ async def create_build(request: BuildRequest) -> dict[str, Any]:
     return (await manager_agent.build(request)).model_dump()
 
 
+@router.post("/api/benchmarks")
+async def run_benchmark(
+    request: BenchmarkRequest,
+) -> dict[str, Any]:
+    try:
+        return (await benchmark_agent.run(request.agent_id)).model_dump()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/api/benchmarks")
+async def list_benchmarks(
+    agent_id: str | None = None,
+) -> list[dict[str, Any]]:
+    return [
+        run.model_dump()
+        for run in store.benchmarks(agent_id=agent_id)
+    ]
+
+
 @router.get("/api/builds")
 async def list_builds() -> list[dict[str, Any]]:
     return [build.model_dump() for build in store.builds()]
@@ -341,24 +499,10 @@ async def execute_tool(tool_id: str, request: ExecuteRequest) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Tool not found")
     tool = ToolRecord.model_validate(tool_data)
     try:
-        if tool.generated and tool.source_file:
-            result = await runtime.execute_file(tool.source_file, request.payload, mock_system.get)
-        else:
-            result = await _execute_existing(tool.operation, request.payload)
+        result = await execute_registered_tool(tool.id, request.payload)
         return {"tool": tool.name, "status": "success", "result": result}
     except (ValueError, LookupError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-async def _execute_existing(operation: str | None, payload: dict[str, Any]) -> dict[str, Any]:
-    if operation == "lookup_order":
-        return await mock_system.get("/mock/orders/" + str(payload.get("order_id", "")).upper())
-    if operation == "track_shipment":
-        return await mock_system.get("/mock/shipments/by-order/" + str(payload.get("order_id", "")).upper())
-    if operation == "check_inventory":
-        return await mock_system.get("/mock/inventory/" + str(payload.get("sku", "")).upper())
-    raise ValueError("Tool has no executable operation")
-
 
 @router.post("/api/reset")
 async def reset_demo() -> dict[str, str]:

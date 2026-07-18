@@ -1,21 +1,40 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.routes import router as api_router
-from backend.app.dependencies import architecture_agent, managed_workspace, settings, store
+from backend.app.dependencies import (
+    agent_process_manager,
+    managed_workspace,
+    monitoring_agent,
+    settings,
+    store,
+)
 from backend.app.mcp.gateway import router as mcp_router
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     store.initialize()
-    store.update_agents(await architecture_agent.discover_all(store.architecture()))
     managed_workspace.initialize()
-    yield
+    await monitoring_agent.reconcile_once()
+    reconciliation_task = asyncio.create_task(
+        monitoring_agent.run_loop(
+            settings.reconciliation_interval_seconds
+        ),
+        name="fleet-reconciliation",
+    )
+    try:
+        yield
+    finally:
+        agent_process_manager.stop_all()
+        reconciliation_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await reconciliation_task
 
 
 app = FastAPI(
