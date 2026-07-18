@@ -18,6 +18,7 @@ from backend.app.core.models import (
     ToolCallRecord,
 )
 from backend.app.infrastructure.mcp_client import ManagedAgentMCPClient
+from backend.app.infrastructure.openai_provider import OpenAIProvider
 
 RegisteredToolExecutor = Callable[
     [str, dict[str, Any]],
@@ -39,19 +40,23 @@ class LiveConversationRunner:
 
     def __init__(
         self,
-        api_key: str | None,
-        model: str,
-        base_url: str,
+        provider: OpenAIProvider,
         mcp_client: ManagedAgentMCPClient,
         transport: httpx.AsyncBaseTransport | None = None,
         registered_tool_executor: RegisteredToolExecutor | None = None,
     ):
-        self.api_key = api_key
-        self.model = model
-        self.base_url = base_url.rstrip("/")
+        self.provider = provider
         self.mcp_client = mcp_client
         self.transport = transport
         self.registered_tool_executor = registered_tool_executor
+
+    @property
+    def api_key(self) -> str | None:
+        return self.provider.api_key
+
+    @api_key.setter
+    def api_key(self, value: str | None) -> None:
+        self.provider.api_key = value
 
     @staticmethod
     def is_live_endpoint(agent: AgentRecord) -> bool:
@@ -67,7 +72,7 @@ class LiveConversationRunner:
     ) -> LiveConversationResult:
         if not self.is_live_endpoint(agent):
             raise ValueError("The selected agent does not use an HTTP(S) MCP endpoint")
-        if not self.api_key:
+        if not self.provider.configured:
             raise ValueError("OPENAI_API_KEY is not configured")
         if not agent.mcp_tools:
             raise ValueError(
@@ -110,7 +115,7 @@ class LiveConversationRunner:
                 payload = await self._create_response(
                     client,
                     {
-                        "model": self.model,
+                        "model": self.provider.model,
                         "instructions": instructions,
                         "input": input_items,
                         "tools": tools,
@@ -132,7 +137,7 @@ class LiveConversationRunner:
                     and item.get("type") == "function_call"
                 ]
                 if not requested:
-                    text = self._output_text(payload)
+                    text = self.provider.output_text(payload)
                     if not text:
                         raise ValueError("Live reasoning loop returned no final text")
                     return self._result(
@@ -217,16 +222,10 @@ class LiveConversationRunner:
         client: httpx.AsyncClient,
         body: dict[str, Any],
     ) -> dict[str, Any]:
-        response = await client.post(
-            f"{self.base_url}/responses",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            json=body,
+        return await self.provider.create_response(
+            body,
+            client=client,
         )
-        response.raise_for_status()
-        return response.json()
 
     def _result(
         self,
@@ -261,7 +260,7 @@ class LiveConversationRunner:
                 "Ground the answer in the real tool execution result",
             ],
             evidence=evidence,
-            provider=f"openai:{self.model}+mcp",
+            provider=f"openai:{self.provider.model}+mcp",
         )
 
     @staticmethod
@@ -293,20 +292,3 @@ class LiveConversationRunner:
                 }
             )
         return tools, names
-
-    @staticmethod
-    def _output_text(payload: dict[str, Any]) -> str:
-        direct = payload.get("output_text")
-        if isinstance(direct, str) and direct.strip():
-            return direct.strip()
-        for item in payload.get("output", []):
-            if not isinstance(item, dict):
-                continue
-            for content in item.get("content", []):
-                if (
-                    isinstance(content, dict)
-                    and content.get("type") == "output_text"
-                    and isinstance(content.get("text"), str)
-                ):
-                    return content["text"].strip()
-        return ""

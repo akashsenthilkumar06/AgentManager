@@ -1658,12 +1658,38 @@ main.workspace-main { width: calc(100vw - 288px); max-width: none; height: 100vh
 .benchmark-empty p { max-width: 570px; margin: 0; font-size: 9px; line-height: 1.55; }
 .benchmark-empty .primary-button { margin-top: 8px; }
 
+/* OpenAI provider readiness */
+.openai-provider-card { margin-bottom: 15px; padding: 17px 18px; border: 1px solid #c9d8e7; border-radius: 14px; background: linear-gradient(120deg, #f7fbff, #fff 58%); box-shadow: 0 9px 25px rgba(40,63,82,.045); display: grid; grid-template-columns: auto minmax(240px, 1.2fr) minmax(310px, 1fr) auto; align-items: center; gap: 16px; animation: surface-in .34s var(--ease-out) both; }
+.openai-provider-card.connected { border-color: #a9d4bd; background: linear-gradient(120deg, #f1faf5, #fff 58%); }
+.openai-provider-card.error { border-color: #e4bebe; background: linear-gradient(120deg, #fff6f6, #fff 58%); }
+.openai-provider-mark { width: 39px; height: 39px; border-radius: 11px; color: #315d78; background: #e2eef5; display: grid; place-items: center; font: 750 9px var(--mono); }
+.openai-provider-card.connected .openai-provider-mark { color: #236b49; background: #dff2e8; }
+.openai-provider-card.error .openai-provider-mark { color: #963f3f; background: #f5e0e0; }
+.openai-provider-copy > span, .openai-provider-copy > strong, .openai-provider-copy > small { display: block; }
+.openai-provider-copy > span { color: #748994; font: 650 7px var(--mono); letter-spacing: .1em; }
+.openai-provider-copy > strong { margin-top: 5px; font-size: 12px; }
+.openai-provider-copy > small { max-width: 590px; margin-top: 5px; color: var(--muted); font-size: 8px; line-height: 1.45; }
+.openai-provider-config { padding: 0 16px; border-right: 1px solid var(--soft-line); border-left: 1px solid var(--soft-line); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+.openai-provider-config span, .openai-provider-config small, .openai-provider-config strong { min-width: 0; display: block; }
+.openai-provider-config small { color: var(--faint); font-size: 7px; }
+.openai-provider-config strong { margin-top: 5px; overflow: hidden; font: 8px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.openai-provider-action { display: grid; justify-items: end; gap: 8px; }
+.openai-provider-state { color: var(--faint); font: 7px var(--mono); text-transform: uppercase; }
+.openai-provider-state i { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: #a1aea8; }
+.openai-provider-state.connected { color: #25704c; }
+.openai-provider-state.connected i { background: #32b978; box-shadow: 0 0 0 4px rgba(50,185,120,.09); }
+.openai-provider-state.error { color: #994545; }
+.openai-provider-state.error i { background: #c65b5b; }
+.openai-provider-action .primary-button { min-width: 112px; }
+
 @media (max-width: 850px) {
   .benchmark-score-hero { grid-template-columns: 1fr; }
   .benchmark-score-pair { justify-content: center; }
   .benchmark-control-strip { grid-template-columns: 1fr 1fr; }
   .benchmark-control-strip label { grid-column: 1 / -1; }
   .benchmark-control-strip > div { padding-left: 0; border-left: 0; }
+  .openai-provider-card { grid-template-columns: auto 1fr auto; }
+  .openai-provider-config { grid-column: 1 / -1; grid-row: 2; padding: 13px 0 0; border: 0; border-top: 1px solid var(--soft-line); }
 }
 @media (max-width: 620px) {
   .agent-import-backdrop { padding: 0; place-items: end center; }
@@ -1676,6 +1702,9 @@ main.workspace-main { width: calc(100vw - 288px); max-width: none; height: 100vh
   .benchmark-scenario-table > article { grid-template-columns: 1fr 1fr; }
   .benchmark-scenario-table > article > div:first-child { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--soft-line); }
   .benchmark-control-strip { grid-template-columns: 1fr; }
+  .openai-provider-card { grid-template-columns: auto 1fr; }
+  .openai-provider-action { grid-column: 1 / -1; justify-items: stretch; }
+  .openai-provider-action .primary-button { width: 100%; }
 }
 .execution-receipt.fallback small { margin-top: 4px; color: #9a7b51; font-size: 7px; line-height: 1.45; }
 .conversation-tool-trace { margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--soft-line); }

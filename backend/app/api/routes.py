@@ -33,11 +33,13 @@ from backend.app.dependencies import (
     managed_workspace,
     mock_system,
     monitoring_agent,
+    openai_provider,
     runtime,
     settings,
     store,
     workspace_access,
 )
+from backend.app.infrastructure.openai_provider import OpenAIProviderError
 
 router = APIRouter()
 
@@ -68,6 +70,7 @@ async def overview() -> dict[str, Any]:
             "last_error": reconciliation.get("last_error"),
             "summary": reconciliation.get("summary", {}),
         },
+        "openai": openai_provider.status(),
         "mcp_servers": [
             {"id": "architecture", "name": "Architecture", "status": "connected", "tools": 2},
             {"id": "workspace", "name": "Client Workspace", "status": "connected", "tools": 1},
@@ -76,6 +79,31 @@ async def overview() -> dict[str, Any]:
             {"id": "monitoring", "name": "Monitoring", "status": "connected", "tools": 1},
         ],
     }
+
+
+@router.get("/api/openai/status")
+async def openai_status() -> dict[str, Any]:
+    return openai_provider.status()
+
+
+@router.post("/api/openai/test")
+async def test_openai_connection() -> dict[str, Any]:
+    try:
+        return await openai_provider.test_connection()
+    except OpenAIProviderError as exc:
+        status_code = (
+            422
+            if exc.status_code is None
+            and not openai_provider.configured
+            else 502
+        )
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "message": exc.message,
+                "provider_status": openai_provider.status(),
+            },
+        ) from exc
 
 
 @router.get("/api/findings")
@@ -488,6 +516,7 @@ async def health() -> dict[str, Any]:
         "healthy": healthy,
         "total": len(results),
         "results": [result.model_dump() for result in results],
+        "openai": openai_provider.status(),
     }
 
 

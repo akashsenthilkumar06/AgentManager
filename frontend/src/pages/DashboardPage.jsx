@@ -22,6 +22,7 @@ export default function DashboardPage({ overview, health }) {
   const findings = overview.standing_findings || [];
   const activeFindings = findings.filter((finding) => finding.status !== "resolved");
   const reconciliation = overview.reconciliation || {};
+  const openai = overview.openai || {};
   const latestConversation = conversations[0];
   const latestAgent = agents.find((agent) => agent.id === latestConversation?.agent_id) || agents[0];
   const attention = (health?.results || []).filter((result) => result.status !== "healthy");
@@ -94,6 +95,7 @@ export default function DashboardPage({ overview, health }) {
           <div className="pulse-lines">
             <div><span><i />MCP connections</span><strong>{overview.mcp_servers.length}/{overview.mcp_servers.length}</strong></div>
             <div><span><i />Managed agents</span><strong>{agents.filter((agent) => agent.status === "healthy").length}/{agents.length}</strong></div>
+            <div><span><i className={openai.status === "error" || !openai.configured ? "warning" : ""} />OpenAI reasoning</span><strong>{openai.status === "connected" ? "live" : openai.configured ? "ready" : "local"}</strong></div>
             <div><span><i className={attention.length || activeFindings.length ? "warning" : ""} />Needs attention</span><strong>{attention.length + activeFindings.length}</strong></div>
           </div>
           <button onClick={() => navigate("/health")}>View system health <span>→</span></button>

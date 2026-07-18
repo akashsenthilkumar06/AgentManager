@@ -6,7 +6,10 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
-import httpx
+from backend.app.infrastructure.openai_provider import (
+    OpenAIProvider,
+    OpenAIProviderError,
+)
 
 
 ToolExecutor = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
@@ -76,10 +79,8 @@ class OpenAIManagerLoop:
         },
     ]
 
-    def __init__(self, api_key: str | None, model: str, base_url: str):
-        self.api_key = api_key
-        self.model = model
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, provider: OpenAIProvider):
+        self.provider = provider
 
     async def run(
         self,
@@ -87,7 +88,7 @@ class OpenAIManagerLoop:
         agent_context: dict[str, Any],
         execute: ToolExecutor,
     ) -> ManagerLoopResult | None:
-        if not self.api_key:
+        if not self.provider.configured:
             return None
         input_items: list[dict[str, Any]] = [
             {
@@ -108,75 +109,61 @@ class OpenAIManagerLoop:
             "Finish with a concise explanation of what you inspected and changed."
         )
         try:
-            async with httpx.AsyncClient(timeout=35.0) as client:
-                for _ in range(5):
-                    response = await client.post(
-                        f"{self.base_url}/responses",
-                        headers={
-                            "Authorization": f"Bearer {self.api_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "model": self.model,
-                            "instructions": instructions,
-                            "input": input_items,
-                            "tools": self.TOOLS,
-                            "tool_choice": "auto",
-                            "parallel_tool_calls": True,
-                        },
+            for _ in range(5):
+                payload = await self.provider.create_response(
+                    {
+                        "instructions": instructions,
+                        "input": input_items,
+                        "tools": self.TOOLS,
+                        "tool_choice": "auto",
+                        "parallel_tool_calls": True,
+                    }
+                )
+                output = payload.get("output", [])
+                if isinstance(output, list):
+                    input_items.extend(output)
+                function_calls = [
+                    item
+                    for item in output
+                    if isinstance(item, dict)
+                    and item.get("type") == "function_call"
+                ]
+                if not function_calls:
+                    return ManagerLoopResult(
+                        text=self.provider.output_text(payload),
+                        provider=f"openai:{self.provider.model}",
+                        calls=calls,
                     )
-                    response.raise_for_status()
-                    payload = response.json()
-                    output = payload.get("output", [])
-                    if isinstance(output, list):
-                        input_items.extend(output)
-                    function_calls = [
-                        item
-                        for item in output
-                        if isinstance(item, dict)
-                        and item.get("type") == "function_call"
-                    ]
-                    if not function_calls:
-                        return ManagerLoopResult(
-                            text=self._output_text(payload),
-                            provider=f"openai:{self.model}",
-                            calls=calls,
-                        )
-                    for item in function_calls:
-                        name = str(item.get("name", ""))
-                        arguments = json.loads(str(item.get("arguments", "{}")))
-                        result = await execute(name, arguments)
-                        calls.append(
-                            {"name": name, "arguments": arguments, "result": result}
-                        )
-                        input_items.append(
-                            {
-                                "type": "function_call_output",
-                                "call_id": item["call_id"],
-                                "output": json.dumps(result),
-                            }
-                        )
+                for item in function_calls:
+                    name = str(item.get("name", ""))
+                    arguments = json.loads(
+                        str(item.get("arguments", "{}"))
+                    )
+                    result = await execute(name, arguments)
+                    calls.append(
+                        {
+                            "name": name,
+                            "arguments": arguments,
+                            "result": result,
+                        }
+                    )
+                    input_items.append(
+                        {
+                            "type": "function_call_output",
+                            "call_id": item["call_id"],
+                            "output": json.dumps(result),
+                        }
+                    )
             return ManagerLoopResult(
                 text="I inspected the selected agent, prepared a change, and validated the proposal.",
-                provider=f"openai:{self.model}",
+                provider=f"openai:{self.provider.model}",
                 calls=calls,
             )
-        except (httpx.HTTPError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        except (
+            OpenAIProviderError,
+            KeyError,
+            TypeError,
+            ValueError,
+            json.JSONDecodeError,
+        ):
             return None
-
-    @staticmethod
-    def _output_text(payload: dict[str, Any]) -> str:
-        direct = payload.get("output_text")
-        if isinstance(direct, str) and direct.strip():
-            return direct.strip()
-        for item in payload.get("output", []):
-            if not isinstance(item, dict):
-                continue
-            for content in item.get("content", []):
-                if (
-                    isinstance(content, dict)
-                    and content.get("type") == "output_text"
-                    and isinstance(content.get("text"), str)
-                ):
-                    return content["text"].strip()
-        return "I completed the requested agent analysis and prepared the validated change."

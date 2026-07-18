@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-import httpx
-
 from backend.app.core.models import ReuseCandidate
+from backend.app.infrastructure.openai_provider import (
+    OpenAIProvider,
+    OpenAIProviderError,
+)
 
 
 @dataclass(slots=True)
@@ -18,14 +20,12 @@ class RouteDecision:
 class LLMRouter:
     """Optional OpenAI reasoning call with a resilient local routing fallback."""
 
-    def __init__(self, api_key: str | None, model: str, base_url: str):
-        self.api_key = api_key
-        self.model = model
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, provider: OpenAIProvider):
+        self.provider = provider
 
     async def route(self, prompt: str, candidates: list[ReuseCandidate]) -> RouteDecision:
         local = self._local_route(prompt)
-        if not self.api_key:
+        if not self.provider.configured:
             return local
 
         context = [
@@ -42,7 +42,6 @@ class LLMRouter:
             },
         }
         body = {
-            "model": self.model,
             "instructions": (
                 "You route capability requests for an enterprise agent-tool manager. "
                 "Choose the closest supported MVP intent using the indexed architecture. "
@@ -52,30 +51,15 @@ class LLMRouter:
             "text": {"format": {"type": "json_schema", "name": "capability_route", "strict": True, "schema": schema}},
         }
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                response = await client.post(
-                    f"{self.base_url}/responses",
-                    headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-                    json=body,
-                )
-                response.raise_for_status()
-            parsed = json.loads(self._output_text(response.json()))
-            return RouteDecision(intent=parsed["intent"], rationale=parsed["rationale"], provider=f"openai:{self.model}")
-        except (httpx.HTTPError, KeyError, ValueError, json.JSONDecodeError) as exc:
+            response = await self.provider.create_response(
+                body,
+                reasoning_effort="none",
+                max_output_tokens=320,
+            )
+            parsed = json.loads(self.provider.output_text(response))
+            return RouteDecision(intent=parsed["intent"], rationale=parsed["rationale"], provider=f"openai:{self.provider.model}")
+        except (OpenAIProviderError, KeyError, ValueError, json.JSONDecodeError) as exc:
             return RouteDecision(intent=local.intent, rationale=f"Local fallback after provider error: {exc}", provider="local:fallback")
-
-    @staticmethod
-    def _output_text(payload: dict[str, object]) -> str:
-        direct = payload.get("output_text")
-        if isinstance(direct, str):
-            return direct
-        for output in payload.get("output", []):  # type: ignore[union-attr]
-            if not isinstance(output, dict):
-                continue
-            for content in output.get("content", []):
-                if isinstance(content, dict) and content.get("type") == "output_text" and isinstance(content.get("text"), str):
-                    return content["text"]
-        raise ValueError("OpenAI response did not contain output text")
 
     @staticmethod
     def _local_route(prompt: str) -> RouteDecision:

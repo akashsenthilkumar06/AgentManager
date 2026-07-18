@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
+
+# Tests must never load a developer's real key or spend API credits.
+os.environ["AGENT_MANAGER_ENV_FILE"] = ""
+os.environ.pop("OPENAI_API_KEY", None)
 
 import backend.app.dependencies as dependencies
 import backend.app.main as manager
@@ -9,6 +15,32 @@ import backend.app.main as manager
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
+    monkeypatch.setattr(dependencies.openai_provider, "api_key", None)
+    monkeypatch.setattr(
+        dependencies.openai_provider,
+        "last_status",
+        "not_tested",
+    )
+    monkeypatch.setattr(
+        dependencies.openai_provider,
+        "last_checked_at",
+        None,
+    )
+    monkeypatch.setattr(
+        dependencies.openai_provider,
+        "last_error",
+        None,
+    )
+    monkeypatch.setattr(
+        dependencies.openai_provider,
+        "last_request_id",
+        None,
+    )
+    monkeypatch.setattr(
+        dependencies.openai_provider,
+        "last_response_model",
+        None,
+    )
     monkeypatch.setattr(dependencies.store, "path", tmp_path / "data" / "state.json")
     monkeypatch.setattr(dependencies.runtime, "generated_dir", tmp_path / "generated_tools")
     dependencies.runtime.generated_dir.mkdir(parents=True, exist_ok=True)

@@ -23,6 +23,7 @@ from backend.app.infrastructure.managed_workspace import ManagedAgentWorkspace
 from backend.app.infrastructure.mcp_client import ManagedAgentMCPClient
 from backend.app.infrastructure.mock_system import MockSystem
 from backend.app.infrastructure.openai_manager import OpenAIManagerLoop
+from backend.app.infrastructure.openai_provider import OpenAIProvider
 from backend.app.infrastructure.tool_runtime import ToolRuntime
 from backend.app.infrastructure.workspace_access import WorkspaceAccess
 
@@ -35,6 +36,18 @@ mcp_client = ManagedAgentMCPClient()
 workspace_access = WorkspaceAccess(settings.workspace_root)
 managed_workspace = ManagedAgentWorkspace(store, workspace_access)
 agent_process_manager = AgentProcessManager()
+openai_provider = OpenAIProvider(
+    settings.openai_api_key,
+    settings.openai_model,
+    settings.openai_base_url,
+    organization_id=settings.openai_organization_id,
+    project_id=settings.openai_project_id,
+    reasoning_effort=settings.openai_reasoning_effort,
+    max_output_tokens=settings.openai_max_output_tokens,
+    timeout_seconds=settings.openai_request_timeout_seconds,
+    max_retries=settings.openai_max_retries,
+    safety_identifier=settings.openai_safety_identifier,
+)
 
 
 async def execute_registered_tool(
@@ -75,11 +88,7 @@ monitoring_agent = MonitoringAgent(
     architecture_agent,
     managed_workspace,
 )
-llm_router = LLMRouter(
-    settings.openai_api_key,
-    settings.openai_model,
-    settings.openai_base_url,
-)
+llm_router = LLMRouter(openai_provider)
 manager_agent = ManagerAgent(
     store,
     architecture_agent,
@@ -91,9 +100,7 @@ manager_agent = ManagerAgent(
     managed_workspace,
 )
 live_conversation_runner = LiveConversationRunner(
-    settings.openai_api_key,
-    settings.openai_model,
-    settings.openai_base_url,
+    openai_provider,
     mcp_client,
     registered_tool_executor=execute_registered_tool,
 )
@@ -102,11 +109,7 @@ conversation_agent = ConversationAgent(
     mock_system,
     live_conversation_runner,
 )
-openai_manager_loop = OpenAIManagerLoop(
-    settings.openai_api_key,
-    settings.openai_model,
-    settings.openai_base_url,
-)
+openai_manager_loop = OpenAIManagerLoop(openai_provider)
 agentic_manager = AgenticManager(
     store,
     architecture_agent,

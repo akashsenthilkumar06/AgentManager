@@ -2,6 +2,13 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, ""
 
 function errorMessage(body, status) {
   if (typeof body.detail === "string") return body.detail;
+  if (
+    body.detail
+    && typeof body.detail === "object"
+    && typeof body.detail.message === "string"
+  ) {
+    return body.detail.message;
+  }
   if (Array.isArray(body.detail)) {
     const messages = body.detail
       .map((item) => item?.msg)

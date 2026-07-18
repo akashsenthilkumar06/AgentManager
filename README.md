@@ -146,13 +146,30 @@ You can also invoke the launcher directly:
 
 The individual `make dev-backend` and `make dev-frontend` commands remain available when separate terminals are useful.
 
-To enable model-backed routing, copy `.env.example` to `.env`, export the variables in your shell, and set `OPENAI_API_KEY`. If the provider is unavailable or returns an invalid response, the Manager records that fact and safely falls back to deterministic routing.
+To enable model-backed routing, copy `.env.example` to `.env` and replace
+`your_api_key_here`. The backend loads the project-root `.env` automatically;
+values already exported in the shell take precedence. Never put the key in the
+React frontend.
 
 ```bash
-export OPENAI_API_KEY="your-key"
-export OPENAI_MODEL="gpt-5-mini"
-uvicorn backend.app.main:app --reload
+cp .env.example .env
+# Edit OPENAI_API_KEY in .env, then:
+make dev
 ```
+
+The default model is `gpt-5.6-terra`, the balanced current GPT-5.6 tier for
+this interactive tool-using workload. `OPENAI_REASONING_EFFORT=low` keeps
+ordinary loops responsive; both are configurable. Optional
+`OPENAI_PROJECT_ID` and `OPENAI_ORGANIZATION_ID` values add the corresponding
+request headers when a key needs explicit billing attribution. All OpenAI
+requests remain server-side, use the Responses API, default to `store=false`,
+apply bounded output tokens and retries, and preserve visible local fallback
+behavior.
+
+After startup, open **System health → OpenAI Responses API → Test connection**.
+This explicit button sends one small readiness request and reports the actual
+response model and request ID. Background health and fleet reconciliation do
+not spend OpenAI tokens.
 
 For client-agent Test mode, an HTTP(S) `mcp_endpoint` plus
 `OPENAI_API_KEY` activates the live reasoning path. The model sees the tools
@@ -226,12 +243,13 @@ The repository includes a completely independent MCP server in
 and returns distinctive provenance fields that the local demo tools do not
 contain.
 
-1. In terminal one, export an OpenAI key before starting the main app:
+1. In terminal one, configure the project environment before starting the main
+   app:
 
    ```bash
    cd /path/to/AgentManager
-   export OPENAI_API_KEY="your-key"
-   export OPENAI_MODEL="gpt-5-mini"
+   cp .env.example .env
+   # Edit OPENAI_API_KEY in .env
    make dev
    ```
 
@@ -324,6 +342,8 @@ The alternate Inventory risk prompt demonstrates routing to a second constrained
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/overview` | Architecture, counts, MCP services, and recent builds |
+| `GET` | `/api/openai/status` | Return secret-free OpenAI configuration and last-request status |
+| `POST` | `/api/openai/test` | Send one small Responses API readiness request |
 | `POST` | `/api/builds` | Run the full build pipeline |
 | `GET` | `/api/builds` | Return the build audit trail |
 | `POST` | `/api/benchmarks` | Run a paired original-versus-managed benchmark |
@@ -434,6 +454,7 @@ backend/
       managed_workspace.py    Per-client editable local file sectors
       agent_process.py        Explicit imported-agent process-group controls
       openai_manager.py       OpenAI Responses API function-calling loop
+      openai_provider.py      Shared auth, request defaults, retries, and diagnostics
       mock_system.py          Local enterprise API stand-ins
       tool_runtime.py         Generated-tool execution runtime
       workspace_access.py     Scoped, read-only file inspection

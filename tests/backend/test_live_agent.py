@@ -144,7 +144,7 @@ def test_endpoint_update_discovers_and_calls_standalone_mcp_agent(
     assert conversation.status_code == 200
     answer = conversation.json()["messages"][-1]
     assert answer["execution_mode"] == "live"
-    assert answer["provider"] == "openai:gpt-5-mini+mcp"
+    assert answer["provider"] == "openai:gpt-5.6-terra+mcp"
     assert answer["endpoint"] == endpoint
     assert answer["fallback_reason"] is None
     assert answer["tool_calls"][0]["tool_name"] == "support.lookup_ticket"
