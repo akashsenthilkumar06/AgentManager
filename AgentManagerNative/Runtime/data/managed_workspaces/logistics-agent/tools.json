@@ -1,0 +1,23 @@
+{
+  "mcp_endpoint": "demo://logistics-agent",
+  "enabled_tools": [
+    "track_shipment"
+  ],
+  "discovered_tools": [
+    {
+      "name": "track_shipment",
+      "description": "Retrieves the latest shipment event and expected delivery date.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "order_id"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}

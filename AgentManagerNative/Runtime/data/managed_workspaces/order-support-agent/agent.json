@@ -1,0 +1,14 @@
+{
+  "id": "order-support-agent",
+  "name": "Order Support Agent",
+  "description": "Resolves common order questions and escalates fulfillment exceptions.",
+  "owner": "Customer Experience",
+  "features": [
+    "Order lookup",
+    "Support triage"
+  ],
+  "response_style": "balanced",
+  "tool_policy": "automatic",
+  "verification_mode": "balanced",
+  "memory_enabled": true
+}

@@ -1,0 +1,23 @@
+{
+  "mcp_endpoint": "demo://order-support-agent",
+  "enabled_tools": [
+    "lookup_order"
+  ],
+  "discovered_tools": [
+    {
+      "name": "lookup_order",
+      "description": "Looks up core order details for support workflows.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "order_id"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}

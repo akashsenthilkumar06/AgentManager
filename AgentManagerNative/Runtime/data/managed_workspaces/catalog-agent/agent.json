@@ -1,0 +1,14 @@
+{
+  "id": "catalog-agent",
+  "name": "Catalog Agent",
+  "description": "Answers product availability questions using live inventory.",
+  "owner": "Merchandising",
+  "features": [
+    "Inventory availability",
+    "Stockout risk"
+  ],
+  "response_style": "balanced",
+  "tool_policy": "automatic",
+  "verification_mode": "balanced",
+  "memory_enabled": true
+}

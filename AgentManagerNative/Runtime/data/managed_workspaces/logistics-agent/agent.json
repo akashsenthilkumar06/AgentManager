@@ -1,0 +1,14 @@
+{
+  "id": "logistics-agent",
+  "name": "Logistics Agent",
+  "description": "Tracks shipment movement and identifies carrier exceptions.",
+  "owner": "Logistics",
+  "features": [
+    "Shipment tracking",
+    "Carrier exception detection"
+  ],
+  "response_style": "balanced",
+  "tool_policy": "automatic",
+  "verification_mode": "strict",
+  "memory_enabled": true
+}

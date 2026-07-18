@@ -1,0 +1,23 @@
+{
+  "mcp_endpoint": "demo://catalog-agent",
+  "enabled_tools": [
+    "check_inventory"
+  ],
+  "discovered_tools": [
+    {
+      "name": "check_inventory",
+      "description": "Checks available-to-promise inventory for a SKU.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "sku"
+        ],
+        "properties": {
+          "sku": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}
