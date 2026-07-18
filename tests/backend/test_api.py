@@ -154,6 +154,71 @@ def test_workspace_access_is_read_only_scoped_and_hides_secrets(client):
     assert traversal.status_code == 403
 
 
+def test_can_connect_and_browse_local_agent_workspace(client, tmp_path):
+    workspace = tmp_path / "connected-agent"
+    workspace.mkdir()
+    (workspace / "agent.py").write_text("SYSTEM_PROMPT = 'help users'\n", encoding="utf-8")
+    (workspace / ".env").write_text("OPENAI_API_KEY=hidden", encoding="utf-8")
+    (workspace / "node_modules").mkdir()
+    (workspace / "node_modules" / "ignored.js").write_text("ignored", encoding="utf-8")
+
+    connected = client.post(
+        "/api/workspaces/connect",
+        json={
+            "path": str(workspace),
+            "name": "Connected Agent",
+            "agent_id": "catalog-agent",
+        },
+    )
+
+    assert connected.status_code == 200
+    body = connected.json()
+    assert body["name"] == "Connected Agent"
+    assert body["agent_id"] == "catalog-agent"
+    assert body["root_path"] == str(workspace.resolve())
+    assert body["read_only"] is True
+    workspace_id = body["id"]
+
+    workspaces = client.get("/api/workspaces").json()["workspaces"]
+    assert {item["id"] for item in workspaces} >= {"default", workspace_id}
+
+    listing = client.get(f"/api/workspaces/{workspace_id}/files")
+    assert listing.status_code == 200
+    names = {entry["name"] for entry in listing.json()["entries"]}
+    assert "agent.py" in names
+    assert ".env" not in names
+    assert "node_modules" not in names
+
+    preview = client.get(
+        f"/api/workspaces/{workspace_id}/file",
+        params={"path": "agent.py"},
+    )
+    assert preview.status_code == 200
+    assert "SYSTEM_PROMPT" in preview.json()["content"]
+
+    traversal = client.get(
+        f"/api/workspaces/{workspace_id}/file",
+        params={"path": "../outside.txt"},
+    )
+    assert traversal.status_code == 403
+
+
+def test_connect_workspace_rejects_unknown_agent_and_missing_path(client, tmp_path):
+    missing = client.post(
+        "/api/workspaces/connect",
+        json={"path": str(tmp_path / "missing")},
+    )
+    assert missing.status_code == 404
+
+    existing = tmp_path / "agent"
+    existing.mkdir()
+    unknown_agent = client.post(
+        "/api/workspaces/connect",
+        json={"path": str(existing), "agent_id": "unknown-agent"},
+    )
+    assert unknown_agent.status_code == 422
+
+
 def test_agent_conversation_imports_context_runs_tool_and_verifies_output(client):
     response = client.post(
         "/api/conversations/message",

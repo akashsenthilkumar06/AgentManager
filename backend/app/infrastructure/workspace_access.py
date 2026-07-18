@@ -33,38 +33,44 @@ class WorkspaceAccess:
         self.root = root.resolve()
         self.max_preview_bytes = max_preview_bytes
 
-    def list_directory(self, relative_path: str = "") -> WorkspaceListing:
-        directory = self._resolve(relative_path)
+    def list_directory(
+        self, relative_path: str = "", root: Path | None = None
+    ) -> WorkspaceListing:
+        workspace_root = self._workspace_root(root)
+        directory = self._resolve(relative_path, workspace_root)
         if not directory.is_dir():
             raise NotADirectoryError(relative_path or ".")
         entries: list[WorkspaceEntry] = []
         for child in sorted(directory.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower())):
-            if not self._visible(child):
+            if not self._visible(child, workspace_root):
                 continue
             stat = child.stat()
             entries.append(WorkspaceEntry(
-                path=child.relative_to(self.root).as_posix(),
+                path=child.relative_to(workspace_root).as_posix(),
                 name=child.name,
                 kind="directory" if child.is_dir() else "file",
                 size=0 if child.is_dir() else stat.st_size,
                 modified_at=datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
                 previewable=child.is_file() and child.suffix.lower() in TEXT_SUFFIXES and stat.st_size <= self.max_preview_bytes * 4,
             ))
-        relative = directory.relative_to(self.root)
-        parent = None if directory == self.root else (relative.parent.as_posix() if relative.parent.as_posix() != "." else "")
-        return WorkspaceListing(root_name=self.root.name, path="" if relative.as_posix() == "." else relative.as_posix(), parent=parent, entries=entries)
+        relative = directory.relative_to(workspace_root)
+        parent = None if directory == workspace_root else (relative.parent.as_posix() if relative.parent.as_posix() != "." else "")
+        return WorkspaceListing(root_name=workspace_root.name, path="" if relative.as_posix() == "." else relative.as_posix(), parent=parent, entries=entries)
 
-    def read_file(self, relative_path: str) -> WorkspaceFileContent:
-        path = self._resolve(relative_path)
+    def read_file(
+        self, relative_path: str, root: Path | None = None
+    ) -> WorkspaceFileContent:
+        workspace_root = self._workspace_root(root)
+        path = self._resolve(relative_path, workspace_root)
         if not path.is_file():
             raise FileNotFoundError(relative_path)
-        if not self._visible(path) or path.suffix.lower() not in TEXT_SUFFIXES:
+        if not self._visible(path, workspace_root) or path.suffix.lower() not in TEXT_SUFFIXES:
             raise PermissionError("This file type is not available for preview")
         raw = path.read_bytes()
         truncated = len(raw) > self.max_preview_bytes
         content = raw[: self.max_preview_bytes].decode("utf-8", errors="replace")
         return WorkspaceFileContent(
-            path=path.relative_to(self.root).as_posix(),
+            path=path.relative_to(workspace_root).as_posix(),
             name=path.name,
             language=LANGUAGES.get(path.suffix.lower(), "text"),
             size=len(raw),
@@ -72,19 +78,22 @@ class WorkspaceAccess:
             truncated=truncated,
         )
 
-    def search(self, query: str, limit: int = 8) -> list[WorkspaceFileMatch]:
+    def search(
+        self, query: str, limit: int = 8, root: Path | None = None
+    ) -> list[WorkspaceFileMatch]:
+        workspace_root = self._workspace_root(root)
         terms = {word for word in re.findall(r"[a-z0-9_]+", query.lower()) if len(word) > 2}
         if not terms:
             return []
         matches: list[WorkspaceFileMatch] = []
         scanned = 0
-        for path in self.root.rglob("*"):
+        for path in workspace_root.rglob("*"):
             if scanned >= 600:
                 break
-            if not path.is_file() or not self._visible(path) or path.suffix.lower() not in TEXT_SUFFIXES:
+            if not path.is_file() or not self._visible(path, workspace_root) or path.suffix.lower() not in TEXT_SUFFIXES:
                 continue
             scanned += 1
-            relative = path.relative_to(self.root).as_posix()
+            relative = path.relative_to(workspace_root).as_posix()
             name_matches = terms.intersection(set(re.findall(r"[a-z0-9_]+", relative.lower())))
             content_matches: set[str] = set()
             if path.stat().st_size <= 80_000:
@@ -102,27 +111,39 @@ class WorkspaceAccess:
         matches.sort(key=lambda match: match.score, reverse=True)
         return matches[:limit]
 
-    def summary(self) -> dict[str, object]:
+    def summary(self, root: Path | None = None) -> dict[str, object]:
+        workspace_root = self._workspace_root(root)
         files = directories = 0
-        for path in self.root.rglob("*"):
-            if not self._visible(path):
+        for path in workspace_root.rglob("*"):
+            if not self._visible(path, workspace_root):
                 continue
             if path.is_dir(): directories += 1
             elif path.is_file(): files += 1
             if files + directories >= 5000: break
-        return {"root_name": self.root.name, "root_path": str(self.root), "files": files, "directories": directories, "read_only": True}
+        return {"root_name": workspace_root.name, "root_path": str(workspace_root), "files": files, "directories": directories, "read_only": True}
 
-    def _resolve(self, relative_path: str) -> Path:
-        candidate = (self.root / relative_path).resolve()
-        if candidate != self.root and self.root not in candidate.parents:
+    def validate_root(self, root: Path) -> Path:
+        workspace_root = root.expanduser().resolve()
+        if not workspace_root.exists():
+            raise FileNotFoundError(str(workspace_root))
+        if not workspace_root.is_dir():
+            raise NotADirectoryError(str(workspace_root))
+        return workspace_root
+
+    def _workspace_root(self, root: Path | None) -> Path:
+        return self.validate_root(root or self.root)
+
+    def _resolve(self, relative_path: str, root: Path) -> Path:
+        candidate = (root / relative_path).resolve()
+        if candidate != root and root not in candidate.parents:
             raise PermissionError("Path escapes the configured workspace root")
-        if any(part in EXCLUDED_DIRECTORIES for part in candidate.relative_to(self.root).parts):
+        if any(part in EXCLUDED_DIRECTORIES for part in candidate.relative_to(root).parts):
             raise PermissionError("Path is excluded from workspace access")
         return candidate
 
-    def _visible(self, path: Path) -> bool:
+    def _visible(self, path: Path, root: Path) -> bool:
         try:
-            relative_parts = path.relative_to(self.root).parts
+            relative_parts = path.relative_to(root).parts
         except ValueError:
             return False
         return (
@@ -131,4 +152,3 @@ class WorkspaceAccess:
             and path.suffix.lower() not in SENSITIVE_SUFFIXES
             and not path.name.startswith(".env")
         )
-

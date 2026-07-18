@@ -10,6 +10,7 @@ from backend.app.core.models import (
     AgentRecord,
     ArchitectureState,
     BuildRecord,
+    ConnectedWorkspace,
     ManagerConversation,
     utc_now,
 )
@@ -35,6 +36,7 @@ class JsonStore:
                 "builds": [],
                 "conversations": [],
                 "manager_conversations": [],
+                "workspaces": [],
                 "updated_at": utc_now(),
             }
             self._write(state)
@@ -96,6 +98,18 @@ class JsonStore:
             None,
         )
 
+    def connected_workspaces(self) -> list[ConnectedWorkspace]:
+        return [
+            ConnectedWorkspace.model_validate(item)
+            for item in self.read().get("workspaces", [])
+        ]
+
+    def get_connected_workspace(self, workspace_id: str) -> ConnectedWorkspace | None:
+        return next(
+            (item for item in self.connected_workspaces() if item.id == workspace_id),
+            None,
+        )
+
     def mutate(self, fn: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
         with self._lock:
             state = self.read()
@@ -145,6 +159,19 @@ class JsonStore:
                 conversations.insert(0, item)
             conversations.sort(key=lambda current: current["updated_at"], reverse=True)
             del conversations[80:]
+
+        self.mutate(update)
+
+    def upsert_connected_workspace(self, workspace: ConnectedWorkspace) -> None:
+        def update(state: dict[str, Any]) -> None:
+            workspaces = state.setdefault("workspaces", [])
+            item = workspace.model_dump()
+            for index, current in enumerate(workspaces):
+                if current["id"] == workspace.id:
+                    workspaces[index] = item
+                    break
+            else:
+                workspaces.insert(0, item)
 
         self.mutate(update)
 

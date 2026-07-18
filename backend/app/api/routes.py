@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -9,9 +11,12 @@ from backend.app.core.models import (
     AgentChatRequest,
     AgentUpdateRequest,
     BuildRequest,
+    ConnectedWorkspace,
+    ConnectWorkspaceRequest,
     ExecuteRequest,
     ManagerChatRequest,
     ToolRecord,
+    utc_now,
 )
 from backend.app.dependencies import (
     architecture_agent,
@@ -182,6 +187,103 @@ async def workspace_summary() -> dict[str, object]:
     return workspace_access.summary()
 
 
+@router.get("/api/workspaces")
+async def list_connected_workspaces() -> dict[str, Any]:
+    default = {
+        "id": "default",
+        "name": workspace_access.root.name,
+        "root_path": str(workspace_access.root),
+        "agent_id": None,
+        "writable": False,
+        "default": True,
+        **workspace_access.summary(),
+    }
+    connected = [
+        {
+            **workspace.model_dump(),
+            "default": False,
+            **workspace_access.summary(Path(workspace.root_path)),
+        }
+        for workspace in store.connected_workspaces()
+        if Path(workspace.root_path).exists()
+    ]
+    return {"workspaces": [default, *connected]}
+
+
+@router.post("/api/workspaces/connect")
+async def connect_workspace(request: ConnectWorkspaceRequest) -> dict[str, Any]:
+    if request.agent_id is not None:
+        known_agents = {agent.id for agent in store.architecture().agents}
+        if request.agent_id not in known_agents:
+            raise HTTPException(status_code=422, detail="Managed agent not found")
+    try:
+        root = workspace_access.validate_root(Path(request.path))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Workspace path not found") from exc
+    except NotADirectoryError as exc:
+        raise HTTPException(status_code=422, detail="Workspace path must be a directory") from exc
+    existing = next(
+        (
+            workspace
+            for workspace in store.connected_workspaces()
+            if Path(workspace.root_path).resolve() == root
+        ),
+        None,
+    )
+    now = utc_now()
+    workspace = ConnectedWorkspace(
+        id=existing.id if existing else f"workspace_{uuid4().hex[:10]}",
+        name=request.name or root.name,
+        root_path=str(root),
+        agent_id=request.agent_id,
+        writable=request.writable,
+        created_at=existing.created_at if existing else now,
+        updated_at=now,
+    )
+    store.upsert_connected_workspace(workspace)
+    return {
+        **workspace.model_dump(),
+        "default": False,
+        **workspace_access.summary(root),
+    }
+
+
+@router.get("/api/workspaces/{workspace_id}")
+async def connected_workspace_summary(workspace_id: str) -> dict[str, Any]:
+    root = _workspace_root(workspace_id)
+    workspace = store.get_connected_workspace(workspace_id)
+    metadata = (
+        {"id": "default", "name": root.name, "root_path": str(root), "default": True}
+        if workspace_id == "default"
+        else {**workspace.model_dump(), "default": False}
+    )
+    return {**metadata, **workspace_access.summary(root)}
+
+
+@router.get("/api/workspaces/{workspace_id}/files")
+async def list_connected_workspace_files(
+    workspace_id: str, path: str = Query(default="", max_length=1000)
+) -> dict[str, Any]:
+    try:
+        return workspace_access.list_directory(path, _workspace_root(workspace_id)).model_dump()
+    except (FileNotFoundError, NotADirectoryError) as exc:
+        raise HTTPException(status_code=404, detail="Workspace directory not found") from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+@router.get("/api/workspaces/{workspace_id}/file")
+async def read_connected_workspace_file(
+    workspace_id: str, path: str = Query(min_length=1, max_length=1000)
+) -> dict[str, Any]:
+    try:
+        return workspace_access.read_file(path, _workspace_root(workspace_id)).model_dump()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Workspace file not found") from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
 @router.get("/api/workspace/files")
 async def list_workspace_files(path: str = Query(default="", max_length=1000)) -> dict[str, Any]:
     try:
@@ -292,3 +394,17 @@ async def _mock_response(path: str) -> dict[str, Any]:
         return await mock_system.get(path)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _workspace_root(workspace_id: str) -> Path:
+    if workspace_id == "default":
+        return workspace_access.root
+    workspace = store.get_connected_workspace(workspace_id)
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Connected workspace not found")
+    try:
+        return workspace_access.validate_root(Path(workspace.root_path))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Workspace path not found") from exc
+    except NotADirectoryError as exc:
+        raise HTTPException(status_code=422, detail="Workspace path must be a directory") from exc

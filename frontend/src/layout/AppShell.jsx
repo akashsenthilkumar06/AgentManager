@@ -6,6 +6,7 @@ const NAVIGATION = [
   ["/", "⌂", "Dashboard"],
   ["/workspace", "⌁", "Workspace"],
   ["/agents", "◎", "Managed agents"],
+  ["/files", "▱", "Files"],
   ["/history", "↗", "Activity"],
   ["/health", "◉", "System health"],
 ];

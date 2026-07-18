@@ -427,6 +427,18 @@ textarea { min-height: 126px; padding: 20px 21px; font-size: 15px; }
 .workspace-compact strong, .workspace-compact small { display: block; }
 .workspace-compact strong { color: var(--ink); font-size: 12px; }
 .workspace-compact small { max-width: 600px; margin-top: 3px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-connect-panel { margin-bottom: 13px; padding: 15px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.workspace-connect-panel form { display: grid; grid-template-columns: minmax(240px, 2fr) minmax(180px, 1fr) minmax(170px, .8fr) auto; gap: 10px; align-items: end; }
+.workspace-connect-panel label span { display: block; margin-bottom: 7px; color: var(--faint); font: 700 8px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.workspace-connect-panel input, .workspace-connect-panel select { width: 100%; min-height: 42px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; outline: 0; color: var(--ink); background: #fff; font-size: 11px; }
+.workspace-connect-panel input:focus, .workspace-connect-panel select:focus { border-color: #78a991; box-shadow: 0 0 0 4px rgba(66,143,107,.08); }
+.workspace-connect-panel p { margin: 10px 0 0; color: var(--faint); font-size: 10px; line-height: 1.5; }
+.workspace-selector-strip { margin-bottom: 12px; display: flex; gap: 8px; overflow-x: auto; }
+.workspace-selector-strip button { min-width: 190px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; text-align: left; transition: .18s ease; }
+.workspace-selector-strip button:hover, .workspace-selector-strip button.active { border-color: #9ac8b1; background: #eef8f3; }
+.workspace-selector-strip strong, .workspace-selector-strip small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-selector-strip strong { color: var(--ink); font-size: 12px; }
+.workspace-selector-strip small { margin-top: 4px; color: var(--faint); font-size: 9px; }
 .file-browser.list-only { grid-template-columns: 1fr; }
 .file-browser.list-only .file-pane { border-right: 0; }
 
@@ -474,6 +486,8 @@ textarea { min-height: 126px; padding: 20px 21px; font-size: 15px; }
   .history-summary .status-pill { display: none; }
   .history-details { padding-left: 18px; }
   .workspace-compact > span:not(:first-child) { display: none; }
+  .workspace-connect-panel form { grid-template-columns: 1fr; }
+  .workspace-connect-panel .primary-button { width: 100%; justify-content: center; }
 }
 
 /* Motion system */

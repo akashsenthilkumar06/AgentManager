@@ -202,6 +202,36 @@ class WorkspaceFileContent(BaseModel):
     truncated: bool = False
 
 
+class ConnectedWorkspace(BaseModel):
+    id: str
+    name: str
+    root_path: str
+    agent_id: str | None = None
+    writable: bool = False
+    created_at: str = Field(default_factory=utc_now)
+    updated_at: str = Field(default_factory=utc_now)
+
+
+class ConnectWorkspaceRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=2000)
+    name: str | None = Field(default=None, max_length=120)
+    agent_id: str | None = Field(default=None, max_length=120)
+    writable: bool = False
+
+    @field_validator("path")
+    @classmethod
+    def normalize_path(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("name", "agent_id")
+    @classmethod
+    def normalize_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
 class HealthResult(BaseModel):
     id: str
     kind: Literal["agent", "tool", "endpoint", "data_source", "manager"]
