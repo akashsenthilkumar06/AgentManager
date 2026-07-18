@@ -164,8 +164,6 @@ struct RootView: View {
             AgentsView()
         case .benchmarks:
             BenchmarksView()
-        case .financeDemo:
-            FinanceDemoView()
         case .activity:
             ActivityView()
         case .health:

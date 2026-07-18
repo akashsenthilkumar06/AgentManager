@@ -3,6 +3,7 @@
   "enabled_tools": [
     "track_shipment"
   ],
+  "attached_tools": [],
   "discovered_tools": [
     {
       "name": "track_shipment",
@@ -17,7 +18,10 @@
             "type": "string"
           }
         }
-      }
+      },
+      "tool_id": "track-shipment",
+      "provider": "manager_runtime",
+      "provider_endpoint": null
     }
   ]
 }

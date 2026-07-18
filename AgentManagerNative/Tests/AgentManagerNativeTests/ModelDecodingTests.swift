@@ -43,41 +43,4 @@ struct ModelDecodingTests {
         #expect(status.baseUrl == "https://api.openai.com/v1")
         #expect(status.modelOptions?.first?.id == "gpt-5.6-sol")
     }
-
-    @Test
-    func decodesFinanceCorrection() throws {
-        let data = Data(
-            """
-            {
-              "data_source": "local-demo-data",
-              "table": "finance_invoices",
-              "rows_reviewed": 3,
-              "employee_analysis": {
-                "invoice_ids": ["INV-2048"],
-                "overdue_total": 1840.5,
-                "highest_priority_invoice": "INV-2048",
-                "recommendation": "Contact Acme first.",
-                "mode": "intentional-demo-failure"
-              },
-              "manager_review": {
-                "status": "correction_required",
-                "missed_invoice_ids": ["INV-3019"],
-                "expected_overdue_total": 4090.5,
-                "reported_overdue_total": 1840.5,
-                "reason": "Missing overdue invoice."
-              },
-              "corrected_analysis": {
-                "invoice_ids": ["INV-2048", "INV-3019"],
-                "overdue_total": 4090.5,
-                "highest_priority_invoice": "INV-3019",
-                "recommendation": "Contact Northstar first."
-              }
-            }
-            """.utf8
-        )
-
-        let result = try decoder.decode(FinanceCorrectionResult.self, from: data)
-        #expect(result.managerReview.status == "correction_required")
-        #expect(result.correctedAnalysis.invoiceIds.count == 2)
-    }
 }

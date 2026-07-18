@@ -2,4 +2,56 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-exec "$ROOT/bin/agent-manager-native"
+export AGENT_MANAGER_PROJECT_ROOT="${AGENT_MANAGER_PROJECT_ROOT:-$ROOT}"
+export AGENT_MANAGER_NATIVE_ROOT="${AGENT_MANAGER_NATIVE_ROOT:-$ROOT/AgentManagerNative}"
+PID_FILE="$AGENT_MANAGER_NATIVE_ROOT/Runtime/backend.pid"
+if [[ -z "${AGENT_MANAGER_ENV_FILE:-}" && -f "$ROOT/.env" ]]; then
+  export AGENT_MANAGER_ENV_FILE="$ROOT/.env"
+fi
+
+child_pid=""
+
+terminate_tree() {
+  local pid="$1"
+  local child
+  while read -r child; do
+    [[ -n "$child" ]] && terminate_tree "$child"
+  done < <(pgrep -P "$pid" 2>/dev/null || true)
+  kill -TERM "$pid" 2>/dev/null || true
+}
+
+cleanup() {
+  if [[ -n "$child_pid" ]] && kill -0 "$child_pid" 2>/dev/null; then
+    terminate_tree "$child_pid"
+    wait "$child_pid" 2>/dev/null || true
+  fi
+  if [[ -f "$PID_FILE" ]]; then
+    local backend_pid
+    backend_pid="$(tr -cd '0-9' < "$PID_FILE")"
+    if [[ -n "$backend_pid" ]] && kill -0 "$backend_pid" 2>/dev/null; then
+      kill -TERM "$backend_pid" 2>/dev/null || true
+      for _ in {1..20}; do
+        kill -0 "$backend_pid" 2>/dev/null || break
+        sleep 0.1
+      done
+      if kill -0 "$backend_pid" 2>/dev/null; then
+        kill -KILL "$backend_pid" 2>/dev/null || true
+      fi
+    fi
+    rm -f "$PID_FILE"
+  fi
+}
+
+trap 'cleanup; exit 130' INT TERM HUP
+
+swift run \
+  --package-path "$ROOT/AgentManagerNative" \
+  AgentManagerNative &
+child_pid="$!"
+
+set +e
+wait "$child_pid"
+status="$?"
+set -e
+cleanup
+exit "$status"

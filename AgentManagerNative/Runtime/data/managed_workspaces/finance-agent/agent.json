@@ -1,0 +1,27 @@
+{
+  "id": "finance-agent",
+  "name": "Finance Agent",
+  "description": "Independent finance agent with live Supabase database and Storage access.",
+  "owner": "Local workspace",
+  "features": [
+    "Run the autonomous end-to-end financial analysis pipeline.",
+    "Calculate growth, profitability, liquidity, leverage, cash-flow, and efficiency metrics.",
+    "Run DCF scenarios and comparable valuation multiples.",
+    "Produce a 0-100 evidence-led financial risk assessment.",
+    "Generate a validated analysis report.",
+    "Pull live invoice rows from the configured Supabase database using bounded read-only filters."
+  ],
+  "response_style": "balanced",
+  "tool_policy": "automatic",
+  "verification_mode": "balanced",
+  "memory_enabled": true,
+  "openai_model": null,
+  "openai_reasoning_effort": null,
+  "imported": true,
+  "workspace_id": "workspace_47f60b44f4",
+  "workspace_root": "/Users/akashsenthilkumar/Documents/Coding/AgentManager/managed_agents/finance_agent",
+  "run_command": ".venv/bin/uvicorn finance_agent.app:app --app-dir .. --host 127.0.0.1 --port 8080",
+  "detected_entrypoints": [
+    "python app.py"
+  ]
+}

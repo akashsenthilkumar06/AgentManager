@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class BackendController {
     private var process: Process?
+    private var pidFile: URL?
     private(set) var baseURL: URL?
 
     func start() async throws -> URL {
@@ -48,6 +49,13 @@ final class BackendController {
         process.standardError = FileHandle.standardError
         try process.run()
         self.process = process
+        let pidFile = runtime.appending(path: "backend.pid")
+        try String(process.processIdentifier).write(
+            to: pidFile,
+            atomically: true,
+            encoding: .utf8
+        )
+        self.pidFile = pidFile
 
         let url = URL(string: "http://127.0.0.1:\(port)")!
         for _ in 0..<80 {
@@ -72,6 +80,10 @@ final class BackendController {
             process.terminate()
         }
         self.process = nil
+        if let pidFile {
+            try? FileManager.default.removeItem(at: pidFile)
+        }
+        self.pidFile = nil
         baseURL = nil
     }
 

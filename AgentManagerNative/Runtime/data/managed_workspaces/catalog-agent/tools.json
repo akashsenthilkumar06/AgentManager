@@ -3,6 +3,7 @@
   "enabled_tools": [
     "check_inventory"
   ],
+  "attached_tools": [],
   "discovered_tools": [
     {
       "name": "check_inventory",
@@ -17,7 +18,10 @@
             "type": "string"
           }
         }
-      }
+      },
+      "tool_id": "check-inventory",
+      "provider": "manager_runtime",
+      "provider_endpoint": null
     }
   ]
 }

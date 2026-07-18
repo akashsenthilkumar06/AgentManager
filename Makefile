@@ -1,4 +1,4 @@
-.PHONY: install install-frontend dev dev-backend dev-frontend test check build-frontend
+.PHONY: install install-frontend dev dev-backend dev-frontend app test test-native check build-frontend
 
 install:
 	python3 -m pip install -e '.[dev]'
@@ -15,6 +15,12 @@ dev-backend:
 
 dev-frontend:
 	cd frontend && npm run dev
+
+app:
+	./AgentManagerNative/agent-manager-native
+
+test-native:
+	swift test --package-path AgentManagerNative
 
 build-frontend:
 	cd frontend && npm run build

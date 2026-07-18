@@ -26,9 +26,13 @@
                   "type": "string"
                 }
               }
-            }
+            },
+            "tool_id": "lookup-order",
+            "provider": "manager_runtime",
+            "provider_endpoint": null
           }
         ],
+        "attached_tools": [],
         "mcp_prompts": [
           "summarize_result"
         ],
@@ -39,7 +43,7 @@
           "Order lookup",
           "Support triage"
         ],
-        "last_discovered_at": "2026-07-18T18:41:41.789111+00:00",
+        "last_discovered_at": "2026-07-18T22:57:25.558657+00:00",
         "instructions": "Resolve order questions using current system data. Be clear about status, avoid assumptions, and recommend escalation when fulfillment evidence is incomplete.",
         "response_style": "balanced",
         "tool_policy": "automatic",
@@ -47,7 +51,14 @@
           "lookup_order"
         ],
         "verification_mode": "balanced",
-        "memory_enabled": true
+        "memory_enabled": true,
+        "openai_model": null,
+        "openai_reasoning_effort": null,
+        "imported": false,
+        "workspace_id": null,
+        "workspace_root": null,
+        "run_command": null,
+        "detected_entrypoints": []
       },
       {
         "id": "logistics-agent",
@@ -74,9 +85,13 @@
                   "type": "string"
                 }
               }
-            }
+            },
+            "tool_id": "track-shipment",
+            "provider": "manager_runtime",
+            "provider_endpoint": null
           }
         ],
+        "attached_tools": [],
         "mcp_prompts": [
           "summarize_result"
         ],
@@ -87,7 +102,7 @@
           "Shipment tracking",
           "Carrier exception detection"
         ],
-        "last_discovered_at": "2026-07-18T18:41:41.789126+00:00",
+        "last_discovered_at": "2026-07-18T22:57:25.558673+00:00",
         "instructions": "Track shipment movement using carrier events. Always surface the latest event, delivery estimate, and any active exception or delay.",
         "response_style": "balanced",
         "tool_policy": "automatic",
@@ -95,7 +110,14 @@
           "track_shipment"
         ],
         "verification_mode": "strict",
-        "memory_enabled": true
+        "memory_enabled": true,
+        "openai_model": null,
+        "openai_reasoning_effort": null,
+        "imported": false,
+        "workspace_id": null,
+        "workspace_root": null,
+        "run_command": null,
+        "detected_entrypoints": []
       },
       {
         "id": "catalog-agent",
@@ -122,9 +144,13 @@
                   "type": "string"
                 }
               }
-            }
+            },
+            "tool_id": "check-inventory",
+            "provider": "manager_runtime",
+            "provider_endpoint": null
           }
         ],
+        "attached_tools": [],
         "mcp_prompts": [
           "summarize_result"
         ],
@@ -135,7 +161,7 @@
           "Inventory availability",
           "Stockout risk"
         ],
-        "last_discovered_at": "2026-07-18T18:41:41.789134+00:00",
+        "last_discovered_at": "2026-07-18T22:57:25.558683+00:00",
         "instructions": "Answer availability questions from live inventory quantities. Explain available, on-hand, and reserved stock without promising future replenishment.",
         "response_style": "balanced",
         "tool_policy": "automatic",
@@ -143,7 +169,207 @@
           "check_inventory"
         ],
         "verification_mode": "balanced",
-        "memory_enabled": true
+        "memory_enabled": true,
+        "openai_model": null,
+        "openai_reasoning_effort": null,
+        "imported": false,
+        "workspace_id": null,
+        "workspace_root": null,
+        "run_command": null,
+        "detected_entrypoints": []
+      },
+      {
+        "id": "finance-agent",
+        "name": "Finance Agent",
+        "description": "Independent finance agent with live Supabase database and Storage access.",
+        "owner": "Local workspace",
+        "tool_ids": [],
+        "status": "degraded",
+        "mcp_endpoint": "http://127.0.0.1:8080/mcp",
+        "mcp_server_name": "Finance Analyst Agent",
+        "mcp_tools": [
+          {
+            "name": "finance.analyze_company",
+            "description": "Run the autonomous end-to-end financial analysis pipeline.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "company_name": {
+                  "type": "string"
+                },
+                "ticker": {
+                  "type": "string"
+                },
+                "dataset_path": {
+                  "type": "string"
+                },
+                "question": {
+                  "type": "string"
+                }
+              }
+            },
+            "tool_id": null,
+            "provider": "agent_mcp",
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          {
+            "name": "finance.calculate_metrics",
+            "description": "Calculate growth, profitability, liquidity, leverage, cash-flow, and efficiency metrics.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "company_name": {
+                  "type": "string"
+                },
+                "ticker": {
+                  "type": "string"
+                },
+                "dataset_path": {
+                  "type": "string"
+                },
+                "question": {
+                  "type": "string"
+                }
+              }
+            },
+            "tool_id": null,
+            "provider": "agent_mcp",
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          {
+            "name": "finance.run_valuation",
+            "description": "Run DCF scenarios and comparable valuation multiples.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "company_name": {
+                  "type": "string"
+                },
+                "ticker": {
+                  "type": "string"
+                },
+                "dataset_path": {
+                  "type": "string"
+                },
+                "question": {
+                  "type": "string"
+                }
+              }
+            },
+            "tool_id": null,
+            "provider": "agent_mcp",
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          {
+            "name": "finance.assess_risk",
+            "description": "Produce a 0-100 evidence-led financial risk assessment.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "company_name": {
+                  "type": "string"
+                },
+                "ticker": {
+                  "type": "string"
+                },
+                "dataset_path": {
+                  "type": "string"
+                },
+                "question": {
+                  "type": "string"
+                }
+              }
+            },
+            "tool_id": null,
+            "provider": "agent_mcp",
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          {
+            "name": "finance.generate_report",
+            "description": "Generate a validated analysis report.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "company_name": {
+                  "type": "string"
+                },
+                "ticker": {
+                  "type": "string"
+                },
+                "dataset_path": {
+                  "type": "string"
+                },
+                "question": {
+                  "type": "string"
+                }
+              }
+            },
+            "tool_id": null,
+            "provider": "agent_mcp",
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          {
+            "name": "finance.query_invoices",
+            "description": "Pull live invoice rows from the configured Supabase database using bounded read-only filters.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "Optional exact invoice status such as open, paid, or past_due."
+                },
+                "invoice_id": {
+                  "type": "string",
+                  "description": "Optional exact invoice identifier."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "default": 25
+                }
+              },
+              "additionalProperties": false
+            },
+            "tool_id": null,
+            "provider": "agent_mcp",
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          }
+        ],
+        "attached_tools": [],
+        "mcp_prompts": [],
+        "mcp_resources": [],
+        "features": [
+          "Run the autonomous end-to-end financial analysis pipeline.",
+          "Calculate growth, profitability, liquidity, leverage, cash-flow, and efficiency metrics.",
+          "Run DCF scenarios and comparable valuation multiples.",
+          "Produce a 0-100 evidence-led financial risk assessment.",
+          "Generate a validated analysis report.",
+          "Pull live invoice rows from the configured Supabase database using bounded read-only filters."
+        ],
+        "last_discovered_at": "2026-07-18T22:51:12.759144+00:00",
+        "instructions": "Use the connected local workspace as source context. Inspect relevant files before proposing changes, preserve the project's existing architecture, and verify edits against its detected runtime.",
+        "response_style": "balanced",
+        "tool_policy": "automatic",
+        "enabled_tools": [
+          "finance.analyze_company",
+          "finance.calculate_metrics",
+          "finance.run_valuation",
+          "finance.assess_risk",
+          "finance.generate_report",
+          "finance.query_invoices"
+        ],
+        "verification_mode": "balanced",
+        "memory_enabled": true,
+        "openai_model": null,
+        "openai_reasoning_effort": null,
+        "imported": true,
+        "workspace_id": "workspace_47f60b44f4",
+        "workspace_root": "/Users/akashsenthilkumar/Documents/Coding/AgentManager/managed_agents/finance_agent",
+        "run_command": ".venv/bin/uvicorn finance_agent.app:app --app-dir .. --host 127.0.0.1 --port 8080",
+        "detected_entrypoints": [
+          "python app.py"
+        ]
       }
     ],
     "tools": [
@@ -348,11 +574,769 @@
         "status": "healthy"
       }
     ],
-    "indexed_at": "2026-07-18T18:41:41.789241+00:00"
+    "indexed_at": "2026-07-18T22:57:25.591553+00:00"
   },
   "builds": [],
-  "conversations": [],
-  "manager_conversations": [],
-  "workspaces": [],
-  "updated_at": "2026-07-18T18:41:41.789243+00:00"
+  "conversations": [
+    {
+      "id": "chat_907ca8fa3f",
+      "agent_id": "finance-agent",
+      "title": "Use finance.query_invoices with status past_due and limit …",
+      "created_at": "2026-07-18T22:49:48.737613+00:00",
+      "updated_at": "2026-07-18T22:50:13.273519+00:00",
+      "messages": [
+        {
+          "id": "msg_f77e04600f",
+          "role": "user",
+          "content": "Use finance.query_invoices with status past_due and limit 100. You must call the live MCP tool. Tell me the matching invoice count and total amount, and cite data_source, source, content_range, and pulled_live from the returned evidence. Do not use bundled or local demo data.",
+          "created_at": "2026-07-18T22:49:48.737624+00:00",
+          "tool_calls": [],
+          "verification": null,
+          "context_used": [],
+          "execution_mode": "deterministic",
+          "provider": "local:deterministic",
+          "endpoint": null,
+          "fallback_reason": null
+        },
+        {
+          "id": "msg_1edc809c4d",
+          "role": "agent",
+          "content": "- **Matching past-due invoice count:** 16  \n- **Total amount:** **$41,712.00**\n\nLive-query evidence:\n- **data_source:** `supabase`\n- **source:** `supabase://database/finance_invoices`\n- **content_range:** `0-15/16`\n- **pulled_live:** `true`",
+          "created_at": "2026-07-18T22:49:52.123174+00:00",
+          "tool_calls": [
+            {
+              "id": "call_c168fb6144",
+              "tool_name": "finance.query_invoices",
+              "tool_id": null,
+              "status": "passed",
+              "input": {
+                "status": "past_due",
+                "invoice_id": "",
+                "limit": 100
+              },
+              "output": {
+                "data_source": "supabase",
+                "source": "supabase://database/finance_invoices",
+                "table": "finance_invoices",
+                "filters": {
+                  "status": "past_due"
+                },
+                "returned_count": 16,
+                "total_matching": 16,
+                "status_counts": {
+                  "past_due": 16
+                },
+                "total_amount": 41712.0,
+                "evidence": {
+                  "source": "supabase://database/finance_invoices",
+                  "table": "finance_invoices",
+                  "content_range": "0-15/16",
+                  "columns": [
+                    "invoice_id",
+                    "customer_name",
+                    "status",
+                    "amount",
+                    "due_date",
+                    "notes",
+                    "updated_at"
+                  ],
+                  "pulled_live": true,
+                  "retrieved_at": "2026-07-18T22:49:50.795214+00:00"
+                }
+              },
+              "duration_ms": 503,
+              "provider": "agent_mcp",
+              "endpoint": "http://127.0.0.1:8080/mcp"
+            }
+          ],
+          "verification": {
+            "status": "verified",
+            "confidence": 0.96,
+            "summary": "The response matches the request and is grounded in the selected tool output.",
+            "criteria": [
+              "Use the selected agent's configured tool inventory",
+              "Call a discovered or attached tool when current data is required",
+              "Ground the answer in the real tool execution result"
+            ],
+            "evidence": [
+              "Live agent endpoint: http://127.0.0.1:8080/mcp",
+              "OpenAI model: gpt-5.6-terra; reasoning effort: low",
+              "finance.query_invoices returned status=passed via agent_mcp at http://127.0.0.1:8080/mcp, source=supabase://database/finance_invoices"
+            ]
+          },
+          "context_used": [
+            "Agent profile · Finance Agent",
+            "Agent instructions",
+            "Tool contracts · 6",
+            "Features · 6",
+            "MCP prompts · 0",
+            "MCP resources · 0",
+            "Recent agent conversation history",
+            "Execution · Live MCP",
+            "Endpoint · http://127.0.0.1:8080/mcp",
+            "Provider · openai:gpt-5.6-terra+mcp"
+          ],
+          "execution_mode": "live",
+          "provider": "openai:gpt-5.6-terra+mcp",
+          "endpoint": "http://127.0.0.1:8080/mcp",
+          "fallback_reason": null
+        },
+        {
+          "id": "msg_3e376c7f94",
+          "role": "user",
+          "content": "Now use finance.calculate_metrics with company_name Apple, ticker apple, and dataset_path supabase://financial-data/apple_financials.csv. You must call the live MCP tool and report revenue_growth_pct plus the exact evidence source and row count.",
+          "created_at": "2026-07-18T22:50:07.232949+00:00",
+          "tool_calls": [],
+          "verification": null,
+          "context_used": [],
+          "execution_mode": "deterministic",
+          "provider": "local:deterministic",
+          "endpoint": null,
+          "fallback_reason": null
+        },
+        {
+          "id": "msg_203eeb38c5",
+          "role": "agent",
+          "content": "- **Revenue growth:** **2.02%**\n- **Evidence source:** `supabase://financial-data/apple_financials.csv`\n- **Evidence row count:** **2**",
+          "created_at": "2026-07-18T22:50:13.273501+00:00",
+          "tool_calls": [
+            {
+              "id": "call_de63382c79",
+              "tool_name": "finance.calculate_metrics",
+              "tool_id": null,
+              "status": "passed",
+              "input": {
+                "company_name": "Apple",
+                "ticker": "apple",
+                "dataset_path": "supabase://financial-data/apple_financials.csv",
+                "question": "Report revenue_growth_pct and include the exact evidence source and row count from the live analysis."
+              },
+              "output": {
+                "metrics": {
+                  "growth": {
+                    "revenue_growth_pct": 2.02,
+                    "eps_growth_pct": -0.82,
+                    "free_cash_flow_growth_pct": 9.26
+                  },
+                  "profitability": {
+                    "gross_margin": 0.4374,
+                    "operating_margin": 0.3151,
+                    "net_margin": 0.2397,
+                    "roe": 1.6459,
+                    "roic": 0.7533
+                  },
+                  "liquidity": {
+                    "current_ratio": 0.8673,
+                    "quick_ratio": 0.826,
+                    "cash_ratio": 0.1698
+                  },
+                  "leverage": {
+                    "debt_to_equity": 1.8723,
+                    "debt_to_assets": 0.2922
+                  },
+                  "cash_flow": {
+                    "operating_cash_flow": 118254.0,
+                    "free_cash_flow": 108807.0,
+                    "cash_conversion": 1.2616
+                  },
+                  "efficiency": {
+                    "asset_turnover": 1.0714
+                  },
+                  "calculation_status": "success"
+                },
+                "evidence": [
+                  {
+                    "source": "supabase://financial-data/apple_financials.csv",
+                    "statement": "income_statement",
+                    "rows": 2,
+                    "columns": [
+                      "year",
+                      "revenue",
+                      "cost_of_revenue",
+                      "gross_profit",
+                      "operating_income",
+                      "net_income",
+                      "eps",
+                      "total_assets",
+                      "total_liabilities",
+                      "total_equity",
+                      "current_assets",
+                      "current_liabilities",
+                      "cash",
+                      "inventory",
+                      "total_debt",
+                      "shares_outstanding",
+                      "operating_cash_flow",
+                      "capex",
+                      "price"
+                    ]
+                  }
+                ]
+              },
+              "duration_ms": 790,
+              "provider": "agent_mcp",
+              "endpoint": "http://127.0.0.1:8080/mcp"
+            }
+          ],
+          "verification": {
+            "status": "verified",
+            "confidence": 0.96,
+            "summary": "The response matches the request and is grounded in the selected tool output.",
+            "criteria": [
+              "Use the selected agent's configured tool inventory",
+              "Call a discovered or attached tool when current data is required",
+              "Ground the answer in the real tool execution result"
+            ],
+            "evidence": [
+              "Live agent endpoint: http://127.0.0.1:8080/mcp",
+              "OpenAI model: gpt-5.6-terra; reasoning effort: low",
+              "finance.calculate_metrics returned status=passed via agent_mcp at http://127.0.0.1:8080/mcp"
+            ]
+          },
+          "context_used": [
+            "Agent profile · Finance Agent",
+            "Agent instructions",
+            "Tool contracts · 6",
+            "Features · 6",
+            "MCP prompts · 0",
+            "MCP resources · 0",
+            "Recent agent conversation history",
+            "Execution · Live MCP",
+            "Endpoint · http://127.0.0.1:8080/mcp",
+            "Provider · openai:gpt-5.6-terra+mcp"
+          ],
+          "execution_mode": "live",
+          "provider": "openai:gpt-5.6-terra+mcp",
+          "endpoint": "http://127.0.0.1:8080/mcp",
+          "fallback_reason": null
+        }
+      ]
+    }
+  ],
+  "manager_conversations": [
+    {
+      "id": "mgrchat_76737669e9",
+      "agent_id": "finance-agent",
+      "title": "Inspect the Finance Agent runtime status, discover its availab…",
+      "autonomy": "auto",
+      "created_at": "2026-07-18T22:49:22.443740+00:00",
+      "updated_at": "2026-07-18T22:49:31.873130+00:00",
+      "messages": [
+        {
+          "id": "mgrmsg_ab67e13b6b",
+          "role": "user",
+          "content": "Inspect the Finance Agent runtime status, discover its available tools, and call finance.query_invoices. Verify that the live result comes from Supabase. Do not edit any files or instructions.",
+          "created_at": "2026-07-18T22:49:22.443775+00:00",
+          "actions": [],
+          "changes": [],
+          "evaluation": null,
+          "provider": "local:deterministic"
+        },
+        {
+          "id": "mgrmsg_2a86bc076e",
+          "role": "manager",
+          "content": "- **Runtime:** Finance Agent is running (PID 3615) at `http://127.0.0.1:8080/mcp`; its process reports healthy startup and successful MCP requests.\n- **Discovered tools:** `finance.analyze_company`, `finance.calculate_metrics`, `finance.run_valuation`, `finance.assess_risk`, `finance.generate_report`, and `finance.query_invoices`.\n- **Live call:** Successfully called `finance.query_invoices` with no filters.\n\n**Supabase verification:** The returned payload explicitly identifies `data_source: \"supabase\"` and `source: \"supabase://database/finance_invoices\"`, with evidence `table: \"finance_invoices\"`, `content_range: \"0-24/50\"`, and `pulled_live: true`. It returned 25 of 50 matching invoices, totaling **$60,278.50** (17 paid, 8 past due).\n\nNo files or instructions were edited. Runtime evidence was recorded without changing the agent's files or instructions.\n\nDelegation trace:\n1) Runtime Operator: inspect agent runtime\n2) Runtime Operator: discover live capabilities\n3) Runtime Operator: call managed-agent tool\n4) Validation Specialist: evaluate requested outcome",
+          "created_at": "2026-07-18T22:49:31.873111+00:00",
+          "actions": [
+            {
+              "id": "action_77b763719c",
+              "server": "runtime",
+              "tool": "runtime.status",
+              "status": "passed",
+              "title": "Runtime Operator: inspect agent runtime",
+              "detail": "Runtime MCP inspected Finance Agent: process running, endpoint http://127.0.0.1:8080/mcp, and 33 accessible source files.",
+              "duration_ms": 618,
+              "evidence": {
+                "protocol": "MCP JSON-RPC 2.0",
+                "server": "runtime",
+                "tool": "runtime.status",
+                "gateway_receipt": {
+                  "transport": "ASGI",
+                  "endpoint": "/mcp/runtime",
+                  "protocol": "JSON-RPC 2.0",
+                  "handshake": [
+                    "initialize",
+                    "tools/list"
+                  ],
+                  "call": "tools/call",
+                  "advertised_tool": "runtime.status"
+                },
+                "process": {
+                  "status": "running",
+                  "pid": 3615,
+                  "command": ".venv/bin/uvicorn finance_agent.app:app --app-dir .. --host 127.0.0.1 --port 8080",
+                  "started_at": "2026-07-18T22:48:40.080461+00:00",
+                  "exit_code": null
+                },
+                "workspace": {
+                  "root_name": "finance_agent",
+                  "root_path": "/Users/akashsenthilkumar/Documents/Coding/AgentManager/managed_agents/finance_agent",
+                  "files": 33,
+                  "directories": 6,
+                  "read_only": true
+                }
+              }
+            },
+            {
+              "id": "action_2ad783b2c4",
+              "server": "runtime",
+              "tool": "runtime.discover",
+              "status": "passed",
+              "title": "Runtime Operator: discover live capabilities",
+              "detail": "Runtime MCP connected to Finance Analyst Agent at http://127.0.0.1:8080/mcp and discovered 6 real tools.",
+              "duration_ms": 35,
+              "evidence": {
+                "protocol": "MCP JSON-RPC 2.0",
+                "server": "runtime",
+                "tool": "runtime.discover",
+                "gateway_receipt": {
+                  "transport": "ASGI",
+                  "endpoint": "/mcp/runtime",
+                  "protocol": "JSON-RPC 2.0",
+                  "handshake": [],
+                  "call": "tools/call",
+                  "advertised_tool": "runtime.discover"
+                },
+                "discovery": {
+                  "agent_id": "finance-agent",
+                  "endpoint": "http://127.0.0.1:8080/mcp",
+                  "server_name": "Finance Analyst Agent",
+                  "tools": [
+                    {
+                      "name": "finance.analyze_company",
+                      "description": "Run the autonomous end-to-end financial analysis pipeline.",
+                      "provider": "agent_mcp"
+                    },
+                    {
+                      "name": "finance.calculate_metrics",
+                      "description": "Calculate growth, profitability, liquidity, leverage, cash-flow, and efficiency metrics.",
+                      "provider": "agent_mcp"
+                    },
+                    {
+                      "name": "finance.run_valuation",
+                      "description": "Run DCF scenarios and comparable valuation multiples.",
+                      "provider": "agent_mcp"
+                    },
+                    {
+                      "name": "finance.assess_risk",
+                      "description": "Produce a 0-100 evidence-led financial risk assessment.",
+                      "provider": "agent_mcp"
+                    },
+                    {
+                      "name": "finance.generate_report",
+                      "description": "Generate a validated analysis report.",
+                      "provider": "agent_mcp"
+                    },
+                    {
+                      "name": "finance.query_invoices",
+                      "description": "Pull live invoice rows from the configured Supabase database using bounded read-only filters.",
+                      "provider": "agent_mcp"
+                    }
+                  ],
+                  "enabled_tools": [
+                    "finance.analyze_company",
+                    "finance.calculate_metrics",
+                    "finance.run_valuation",
+                    "finance.assess_risk",
+                    "finance.generate_report",
+                    "finance.query_invoices"
+                  ],
+                  "discovered_at": "2026-07-18T22:49:26.747597+00:00",
+                  "status": "healthy",
+                  "_manager_mcp": {
+                    "transport": "ASGI",
+                    "endpoint": "/mcp/runtime",
+                    "protocol": "JSON-RPC 2.0",
+                    "handshake": [],
+                    "call": "tools/call",
+                    "advertised_tool": "runtime.discover"
+                  }
+                }
+              }
+            },
+            {
+              "id": "action_9da448f495",
+              "server": "runtime",
+              "tool": "runtime.call_tool",
+              "status": "passed",
+              "title": "Runtime Operator: call managed-agent tool",
+              "detail": "Runtime MCP called finance.query_invoices through agent_mcp at http://127.0.0.1:8080/mcp; source=supabase://database/finance_invoices.",
+              "duration_ms": 1172,
+              "evidence": {
+                "protocol": "MCP JSON-RPC 2.0",
+                "server": "runtime",
+                "tool": "runtime.call_tool",
+                "gateway_receipt": {
+                  "transport": "ASGI",
+                  "endpoint": "/mcp/runtime",
+                  "protocol": "JSON-RPC 2.0",
+                  "handshake": [],
+                  "call": "tools/call",
+                  "advertised_tool": "runtime.call_tool"
+                },
+                "tool_call": {
+                  "agent_id": "finance-agent",
+                  "tool_name": "finance.query_invoices",
+                  "provider": "agent_mcp",
+                  "endpoint": "http://127.0.0.1:8080/mcp",
+                  "arguments": {},
+                  "output": {
+                    "data_source": "supabase",
+                    "source": "supabase://database/finance_invoices",
+                    "table": "finance_invoices",
+                    "filters": {},
+                    "returned_count": 25,
+                    "total_matching": 50,
+                    "status_counts": {
+                      "paid": 17,
+                      "past_due": 8
+                    },
+                    "total_amount": 60278.5,
+                    "evidence": {
+                      "source": "supabase://database/finance_invoices",
+                      "table": "finance_invoices",
+                      "content_range": "0-24/50",
+                      "columns": [
+                        "invoice_id",
+                        "customer_name",
+                        "status",
+                        "amount",
+                        "due_date",
+                        "notes",
+                        "updated_at"
+                      ],
+                      "pulled_live": true,
+                      "retrieved_at": "2026-07-18T22:49:29.686554+00:00"
+                    }
+                  },
+                  "_manager_mcp": {
+                    "transport": "ASGI",
+                    "endpoint": "/mcp/runtime",
+                    "protocol": "JSON-RPC 2.0",
+                    "handshake": [],
+                    "call": "tools/call",
+                    "advertised_tool": "runtime.call_tool"
+                  }
+                }
+              }
+            },
+            {
+              "id": "action_68142978fc",
+              "server": "validation",
+              "tool": "validation.evaluate",
+              "status": "passed",
+              "title": "Validation Specialist: evaluate requested outcome",
+              "detail": "Validation Specialist: The Manager reached the selected agent through the Runtime MCP and recorded real process, discovery, or tool-call evidence.",
+              "duration_ms": 4,
+              "evidence": {
+                "protocol": "MCP JSON-RPC 2.0",
+                "gateway_receipt": {
+                  "transport": "ASGI",
+                  "endpoint": "/mcp/validation",
+                  "protocol": "JSON-RPC 2.0",
+                  "handshake": [
+                    "initialize",
+                    "tools/list"
+                  ],
+                  "call": "tools/call",
+                  "advertised_tool": "validation.evaluate"
+                }
+              }
+            }
+          ],
+          "changes": [],
+          "evaluation": {
+            "status": "passed",
+            "summary": "The Manager reached the selected agent through the Runtime MCP and recorded real process, discovery, or tool-call evidence.",
+            "checks": [
+              "Scoped workspace access confirmed",
+              "Runtime operation used the Agent Runtime MCP",
+              "Process and endpoint state captured",
+              "Live tool provenance retained when a tool was called"
+            ]
+          },
+          "provider": "openai:gpt-5.6-terra"
+        }
+      ]
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "workspace_47f60b44f4",
+      "name": "Finance Agent",
+      "root_path": "/Users/akashsenthilkumar/Documents/Coding/AgentManager/managed_agents/finance_agent",
+      "agent_id": "finance-agent",
+      "writable": true,
+      "created_at": "2026-07-18T22:48:25.382971+00:00",
+      "updated_at": "2026-07-18T22:48:25.382973+00:00"
+    }
+  ],
+  "updated_at": "2026-07-18T22:57:25.596078+00:00",
+  "findings": [
+    {
+      "id": "finding_f98a75274d",
+      "key": "endpoint:finance-agent",
+      "kind": "endpoint_health",
+      "severity": "critical",
+      "status": "open",
+      "origin": "standing_reconciliation",
+      "title": "Finance Agent MCP endpoint is failing",
+      "detail": "Standing discovery could not refresh http://127.0.0.1:8080/mcp: All connection attempts failed",
+      "why_it_matters": "The agent may be operating with stale tool contracts, and live calls to its MCP tools can fail.",
+      "agent_ids": [
+        "finance-agent"
+      ],
+      "tool_names": [],
+      "before": {
+        "endpoint": "http://127.0.0.1:8080/mcp",
+        "status": "degraded",
+        "tools": {
+          "finance.analyze_company": {
+            "fingerprint": "5a0cef8060ea8ed314b33b5664d3b8f38a2815cb6d6d586be5a53edce09a5e2e",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.calculate_metrics": {
+            "fingerprint": "a2853a216e9a3d31980dc5133ab9fc35e03a9ca02bb11f97821e2e035aa4e51e",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.run_valuation": {
+            "fingerprint": "2a03dae38d04404073d183ae8a49a7fca78d8788f0ae58936770858f34489352",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.assess_risk": {
+            "fingerprint": "1911aebee430d6606e6892754529751a51b84c4245409dc89e5978d2374e4b35",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.generate_report": {
+            "fingerprint": "a9d39bfc2634f3b755d7f8282089a709a9777fe14417ad7c3c8357129ccd1575",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.query_invoices": {
+            "fingerprint": "4615d284488342555914982ab57eee1b5a256f2048f59ce82918a62d00596704",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          }
+        }
+      },
+      "after": {
+        "status": "degraded",
+        "endpoint": "http://127.0.0.1:8080/mcp"
+      },
+      "detected_at": "2026-07-18T22:48:40.972244+00:00",
+      "last_seen_at": "2026-07-18T22:57:25.558228+00:00",
+      "resolved_at": null,
+      "occurrences": 7,
+      "trigger": {
+        "agent": "ArchitectureAgent",
+        "action": "architecture.search",
+        "status": "completed",
+        "detail": "Anomaly edge triggered ArchitectureAgent review; 5 related fleet components were mapped without an OpenAI call.",
+        "related_component_ids": [
+          "finance-agent",
+          "lookup-order",
+          "track-shipment",
+          "check-inventory",
+          "order-support-agent"
+        ]
+      }
+    },
+    {
+      "id": "finding_2aa0ca0c72",
+      "key": "drift:finance-agent:b82cba3eb0:04a694d771",
+      "kind": "capability_drift",
+      "severity": "info",
+      "status": "observed",
+      "origin": "standing_reconciliation",
+      "title": "Finance Agent capability drift detected",
+      "detail": "Added: finance.analyze_company, finance.assess_risk, finance.calculate_metrics, finance.generate_report, finance.query_invoices, finance.run_valuation.",
+      "why_it_matters": "Fleet plans and live tool selection should use the new contract instead of the previous snapshot.",
+      "agent_ids": [
+        "finance-agent"
+      ],
+      "tool_names": [
+        "finance.analyze_company",
+        "finance.assess_risk",
+        "finance.calculate_metrics",
+        "finance.generate_report",
+        "finance.query_invoices",
+        "finance.run_valuation"
+      ],
+      "before": {
+        "endpoint": "http://127.0.0.1:8080/mcp",
+        "status": "degraded",
+        "tools": {}
+      },
+      "after": {
+        "endpoint": "http://127.0.0.1:8080/mcp",
+        "status": "healthy",
+        "tools": {
+          "finance.analyze_company": {
+            "fingerprint": "5a0cef8060ea8ed314b33b5664d3b8f38a2815cb6d6d586be5a53edce09a5e2e",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.calculate_metrics": {
+            "fingerprint": "a2853a216e9a3d31980dc5133ab9fc35e03a9ca02bb11f97821e2e035aa4e51e",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.run_valuation": {
+            "fingerprint": "2a03dae38d04404073d183ae8a49a7fca78d8788f0ae58936770858f34489352",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.assess_risk": {
+            "fingerprint": "1911aebee430d6606e6892754529751a51b84c4245409dc89e5978d2374e4b35",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.generate_report": {
+            "fingerprint": "a9d39bfc2634f3b755d7f8282089a709a9777fe14417ad7c3c8357129ccd1575",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.query_invoices": {
+            "fingerprint": "4615d284488342555914982ab57eee1b5a256f2048f59ce82918a62d00596704",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          }
+        }
+      },
+      "detected_at": "2026-07-18T22:49:10.991684+00:00",
+      "last_seen_at": "2026-07-18T22:49:10.991684+00:00",
+      "resolved_at": null,
+      "occurrences": 1,
+      "trigger": {
+        "agent": "ArchitectureAgent",
+        "action": "architecture.search",
+        "status": "completed",
+        "detail": "Anomaly edge triggered ArchitectureAgent review; 5 related fleet components were mapped without an OpenAI call.",
+        "related_component_ids": [
+          "finance-agent",
+          "catalog-agent",
+          "lookup-order",
+          "track-shipment",
+          "check-inventory"
+        ]
+      }
+    }
+  ],
+  "reconciliation": {
+    "last_checked_at": "2026-07-18T22:57:25.558228+00:00",
+    "last_error": null,
+    "agents": {
+      "order-support-agent": {
+        "endpoint": "demo://order-support-agent",
+        "status": "healthy",
+        "tools": {
+          "lookup_order": {
+            "fingerprint": "aa2ed5669d50c00120c6c346345d2426badc8bc6aa4957e9ddd02f273912934b",
+            "provider": "manager_runtime",
+            "tool_id": "lookup-order",
+            "provider_endpoint": null
+          }
+        }
+      },
+      "logistics-agent": {
+        "endpoint": "demo://logistics-agent",
+        "status": "healthy",
+        "tools": {
+          "track_shipment": {
+            "fingerprint": "bad9d833ac48b03e6b9b363ee616d8330a9ad5fd03fbce624d95b54718b9ad43",
+            "provider": "manager_runtime",
+            "tool_id": "track-shipment",
+            "provider_endpoint": null
+          }
+        }
+      },
+      "catalog-agent": {
+        "endpoint": "demo://catalog-agent",
+        "status": "healthy",
+        "tools": {
+          "check_inventory": {
+            "fingerprint": "a28e0e4af3d815f0a0e341b37e543f1e84dbd1d3e92b27fe6f2f6d2722785e0d",
+            "provider": "manager_runtime",
+            "tool_id": "check-inventory",
+            "provider_endpoint": null
+          }
+        }
+      },
+      "finance-agent": {
+        "endpoint": "http://127.0.0.1:8080/mcp",
+        "status": "degraded",
+        "tools": {
+          "finance.analyze_company": {
+            "fingerprint": "5a0cef8060ea8ed314b33b5664d3b8f38a2815cb6d6d586be5a53edce09a5e2e",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.calculate_metrics": {
+            "fingerprint": "a2853a216e9a3d31980dc5133ab9fc35e03a9ca02bb11f97821e2e035aa4e51e",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.run_valuation": {
+            "fingerprint": "2a03dae38d04404073d183ae8a49a7fca78d8788f0ae58936770858f34489352",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.assess_risk": {
+            "fingerprint": "1911aebee430d6606e6892754529751a51b84c4245409dc89e5978d2374e4b35",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.generate_report": {
+            "fingerprint": "a9d39bfc2634f3b755d7f8282089a709a9777fe14417ad7c3c8357129ccd1575",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          },
+          "finance.query_invoices": {
+            "fingerprint": "4615d284488342555914982ab57eee1b5a256f2048f59ce82918a62d00596704",
+            "provider": "agent_mcp",
+            "tool_id": null,
+            "provider_endpoint": "http://127.0.0.1:8080/mcp"
+          }
+        }
+      }
+    },
+    "health": {
+      "manager:manager": "healthy",
+      "endpoint:orders-api": "healthy",
+      "endpoint:shipments-api": "healthy",
+      "endpoint:inventory-api": "healthy",
+      "endpoint:customers-api": "healthy",
+      "tool:lookup-order": "healthy",
+      "tool:track-shipment": "healthy",
+      "tool:check-inventory": "healthy"
+    },
+    "summary": {
+      "agents_scanned": 4,
+      "capabilities_scanned": 9,
+      "active_findings": 1,
+      "findings_observed": 1,
+      "token_usage": 0
+    }
+  }
 }

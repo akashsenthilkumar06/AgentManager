@@ -7,7 +7,6 @@ enum AppSection: String, CaseIterable, Identifiable {
     case workspace
     case agents
     case benchmarks
-    case financeDemo
     case activity
     case health
 
@@ -18,7 +17,6 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .workspace: "Workspace"
         case .agents: "Managed agents"
         case .benchmarks: "Benchmarks"
-        case .financeDemo: "Finance correction"
         case .activity: "Activity"
         case .health: "System health"
         }
@@ -29,7 +27,6 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .workspace: "wand.and.stars"
         case .agents: "person.3"
         case .benchmarks: "chart.bar.xaxis"
-        case .financeDemo: "dollarsign.circle"
         case .activity: "clock.arrow.circlepath"
         case .health: "waveform.path.ecg"
         }

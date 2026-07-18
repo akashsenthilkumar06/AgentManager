@@ -62,4 +62,19 @@ values there. The service loads this local, Git-ignored file at startup. Keep
 
 The secret key is required for private buckets. A public bucket can be read with `SUPABASE_URL` alone. The URI supports CSV, JSON, Excel, and Parquet objects. For a single-file upload, use `demo_data/apple/apple_financials.csv`, `demo_data/tesla/tesla_financials.csv`, or `demo_data/microsoft/microsoft_financials.csv`.
 
+### Supabase database invoices
+
+The `finance.query_invoices` tool performs a bounded, read-only PostgREST query
+against `SUPABASE_FINANCE_TABLE` (default: `finance_invoices`). It accepts an
+exact `status`, an exact `invoice_id`, and a limit from 1 to 100. It does not
+accept raw SQL, arbitrary table names, or arbitrary filter expressions.
+
+```json
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"finance.query_invoices","arguments":{"status":"past_due","limit":25}}}
+```
+
+Successful results identify `supabase://database/finance_invoices` as their
+source and include the returned rows, result count, amount total, filters,
+Content-Range, retrieval time, and an explicit `pulled_live` evidence flag.
+
 Local agent memory is stored in `state/memory.json` (override with `FINANCE_AGENT_STATE_DIR`).

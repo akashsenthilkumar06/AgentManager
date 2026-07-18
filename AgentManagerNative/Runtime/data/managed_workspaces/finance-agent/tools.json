@@ -1,0 +1,161 @@
+{
+  "mcp_endpoint": "http://127.0.0.1:8080/mcp",
+  "enabled_tools": [
+    "finance.analyze_company",
+    "finance.calculate_metrics",
+    "finance.run_valuation",
+    "finance.assess_risk",
+    "finance.generate_report",
+    "finance.query_invoices"
+  ],
+  "attached_tools": [],
+  "discovered_tools": [
+    {
+      "name": "finance.analyze_company",
+      "description": "Run the autonomous end-to-end financial analysis pipeline.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_name": {
+            "type": "string"
+          },
+          "ticker": {
+            "type": "string"
+          },
+          "dataset_path": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          }
+        }
+      },
+      "tool_id": null,
+      "provider": "agent_mcp",
+      "provider_endpoint": "http://127.0.0.1:8080/mcp"
+    },
+    {
+      "name": "finance.calculate_metrics",
+      "description": "Calculate growth, profitability, liquidity, leverage, cash-flow, and efficiency metrics.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_name": {
+            "type": "string"
+          },
+          "ticker": {
+            "type": "string"
+          },
+          "dataset_path": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          }
+        }
+      },
+      "tool_id": null,
+      "provider": "agent_mcp",
+      "provider_endpoint": "http://127.0.0.1:8080/mcp"
+    },
+    {
+      "name": "finance.run_valuation",
+      "description": "Run DCF scenarios and comparable valuation multiples.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_name": {
+            "type": "string"
+          },
+          "ticker": {
+            "type": "string"
+          },
+          "dataset_path": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          }
+        }
+      },
+      "tool_id": null,
+      "provider": "agent_mcp",
+      "provider_endpoint": "http://127.0.0.1:8080/mcp"
+    },
+    {
+      "name": "finance.assess_risk",
+      "description": "Produce a 0-100 evidence-led financial risk assessment.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_name": {
+            "type": "string"
+          },
+          "ticker": {
+            "type": "string"
+          },
+          "dataset_path": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          }
+        }
+      },
+      "tool_id": null,
+      "provider": "agent_mcp",
+      "provider_endpoint": "http://127.0.0.1:8080/mcp"
+    },
+    {
+      "name": "finance.generate_report",
+      "description": "Generate a validated analysis report.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_name": {
+            "type": "string"
+          },
+          "ticker": {
+            "type": "string"
+          },
+          "dataset_path": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          }
+        }
+      },
+      "tool_id": null,
+      "provider": "agent_mcp",
+      "provider_endpoint": "http://127.0.0.1:8080/mcp"
+    },
+    {
+      "name": "finance.query_invoices",
+      "description": "Pull live invoice rows from the configured Supabase database using bounded read-only filters.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Optional exact invoice status such as open, paid, or past_due."
+          },
+          "invoice_id": {
+            "type": "string",
+            "description": "Optional exact invoice identifier."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          }
+        },
+        "additionalProperties": false
+      },
+      "tool_id": null,
+      "provider": "agent_mcp",
+      "provider_endpoint": "http://127.0.0.1:8080/mcp"
+    }
+  ]
+}

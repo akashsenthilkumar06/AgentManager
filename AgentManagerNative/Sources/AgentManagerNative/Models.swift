@@ -535,28 +535,3 @@ struct AgentImportResponse: Decodable {
 struct AgentProcessStartRequest: Encodable {
     let command: String?
 }
-
-struct FinanceAnalysis: Decodable {
-    let invoiceIds: [String]
-    let overdueTotal: Double
-    let highestPriorityInvoice: String
-    let recommendation: String
-    let mode: String?
-}
-
-struct FinanceManagerReview: Decodable {
-    let status: String
-    let missedInvoiceIds: [String]
-    let expectedOverdueTotal: Double
-    let reportedOverdueTotal: Double
-    let reason: String
-}
-
-struct FinanceCorrectionResult: Decodable {
-    let dataSource: String
-    let table: String
-    let rowsReviewed: Int
-    let employeeAnalysis: FinanceAnalysis
-    let managerReview: FinanceManagerReview
-    let correctedAnalysis: FinanceAnalysis
-}

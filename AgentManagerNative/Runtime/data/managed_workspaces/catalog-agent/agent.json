@@ -10,5 +10,12 @@
   "response_style": "balanced",
   "tool_policy": "automatic",
   "verification_mode": "balanced",
-  "memory_enabled": true
+  "memory_enabled": true,
+  "openai_model": null,
+  "openai_reasoning_effort": null,
+  "imported": false,
+  "workspace_id": null,
+  "workspace_root": null,
+  "run_command": null,
+  "detected_entrypoints": []
 }

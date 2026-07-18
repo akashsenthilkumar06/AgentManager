@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Any, Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AnalysisRequest(BaseModel):
@@ -10,6 +10,12 @@ class AnalysisRequest(BaseModel):
     ticker: str | None = None
     dataset_path: str | None = None
     question: str = "Provide a financial analysis."
+
+
+class InvoiceQueryRequest(BaseModel):
+    status: str | None = None
+    invoice_id: str | None = None
+    limit: int = Field(default=25, ge=1, le=100)
 
 
 class ToolTrace(BaseModel):
